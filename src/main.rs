@@ -1,61 +1,68 @@
-use anyhow::Context as _;
+use std::env;
+
 use serenity::{gateway::ActivityData, prelude::*};
-use shuttle_runtime::SecretStore;
 use sqlx::PgPool;
-use tracing::info;
+use tracing::{error, info, level_filters::LevelFilter};
+use tracing_subscriber::{fmt, layer::SubscriberExt as _, util::SubscriberInitExt as _, EnvFilter};
 use vexillologist::Bot;
 
-// #[tokio::main]
-// async fn main() {
-//     tracing_subscriber::fmt()
-//         .with_env_filter(
-//             EnvFilter::builder()
-//                 .with_default_directive(LevelFilter::INFO.into())
-//                 .from_env_lossy(),
-//         )
-//         .init();
-//
-//     info!("beginning initialization...");
-//
-//     match dotenvy::dotenv() {
-//         Ok(path) => info!(path = %path.display(), "successfully read from .env file"),
-//         Err(error) if error.not_found() => info!("no .env file found, continuing"),
-//         Err(error) => error!(%error, "failed to read from .env file"),
-//     }
-//
-//     let token = env::var("DISCORD_TOKEN").expect("discord token should have been provided");
-//     let token = SecretString::new(token);
-//
-//     vexillologist::run(token).await;
-// }
+#[tokio::main]
+async fn main() {
+    #[cfg(debug_assertions)]
+    let fmt_layer = fmt::layer().with_timer(fmt::time::uptime());
+    #[cfg(not(debug_assertions))]
+    let fmt_layer = fmt::layer();
 
-#[shuttle_runtime::main]
-async fn serenity(
-    #[shuttle_runtime::Secrets] secrets: SecretStore,
-    #[shuttle_shared_db::Postgres] db_pool: PgPool,
-) -> shuttle_serenity::ShuttleSerenity {
-    info!("running migrations...");
+    tracing_subscriber::registry()
+        .with(
+            EnvFilter::builder()
+                .with_default_directive(LevelFilter::INFO.into())
+                .from_env_lossy(),
+        )
+        .with(fmt_layer)
+        .init();
 
-    sqlx::migrate!()
-        .run(&db_pool)
-        .await
-        .expect("migrations should have succeeded");
+    info!("beginning initialization");
 
-    info!("migrations finished");
+    match dotenvy::dotenv() {
+        Ok(path) => info!(path = %path.display(), "successfully read from .env file"),
+        Err(error) if error.not_found() => info!("no .env file found, continuing"),
+        Err(error) => error!(%error, "failed to read from .env file"),
+    }
 
-    // Get the discord token set in `Secrets.toml`
-    let token = secrets
-        .get("DISCORD_TOKEN")
-        .context("'DISCORD_TOKEN' was not found")?;
+    let discord_token = env::var("DISCORD_TOKEN").expect("discord token should have been provided");
+    let connection_string = env::var("CONNECTION_STRING")
+        .expect("database connection string should have been provided");
+
+    let db_pool = match PgPool::connect(&connection_string).await {
+        Ok(pool) => {
+            info!("connected to database");
+            pool
+        }
+        Err(error) => {
+            error!(%error, "failed to connect to database");
+            return;
+        }
+    };
+
+    match sqlx::migrate!().run(&db_pool).await {
+        Ok(_) => {
+            info!("finished running migrations");
+        }
+        Err(error) => {
+            error!(%error, "failed to run migrations");
+            return;
+        }
+    }
 
     // Set gateway intents, which decides what events the bot will be notified about
     let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
 
-    let client = Client::builder(&token, intents)
+    let mut client = Client::builder(&discord_token, intents)
         .event_handler(Bot { db_pool })
         .activity(ActivityData::custom("Watching for scores"))
         .await
         .expect("should have constructed client");
 
-    Ok(client.into())
+    client.start().await.unwrap();
 }

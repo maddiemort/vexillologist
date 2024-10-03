@@ -83,7 +83,6 @@
       devShells.default = pkgs.mkShell {
         packages = with pkgs; [
           cargo-dist
-          cargo-shuttle
           cargo2nix
           convco
           nixpkgs-fmt
