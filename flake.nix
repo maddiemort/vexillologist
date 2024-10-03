@@ -86,6 +86,7 @@
           convco
           nixpkgs-fmt
           rust-toolchain
+          sleek
           sqlx-cli
 
           libiconv

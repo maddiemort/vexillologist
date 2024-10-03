@@ -1,14 +1,16 @@
 use core::fmt;
 use std::str::FromStr;
 
+use sqlx::FromRow;
 use thiserror::Error;
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, FromRow)]
 pub struct Score {
-    correct: usize,
-    board: usize,
-    score: f32,
-    ranking: (usize, usize),
+    pub correct: i32,
+    pub board: i32,
+    pub score: f32,
+    pub rank: i32,
+    pub players: i32,
 }
 
 impl FromStr for Score {
@@ -39,7 +41,7 @@ impl FromStr for Score {
             return Err(ParseScoreError::InvalidFormat(Section::Grid));
         }
 
-        let correct = grid.into_iter().filter(|&v| v).count();
+        let correct = grid.into_iter().filter(|&v| v).count() as i32;
 
         if lines
             .next()
@@ -59,7 +61,7 @@ impl FromStr for Score {
             .ok_or(ParseScoreError::Truncated)?
             .strip_prefix("Board #")
             .ok_or(ParseScoreError::Missing(Section::BoardNumber))?
-            .parse::<usize>()
+            .parse::<i32>()
             .map_err(|_| ParseScoreError::NotANumber(Number::Board))?;
 
         let score = lines
@@ -81,18 +83,19 @@ impl FromStr for Score {
             .ok_or(ParseScoreError::InvalidFormat(Section::Ranking))?;
 
         let rank = String::from_iter(rank_raw.chars().filter(|&c| c != ','))
-            .parse::<usize>()
+            .parse::<i32>()
             .map_err(|_| ParseScoreError::NotANumber(Number::Rank))?;
 
         let players = String::from_iter(players_raw.chars().filter(|&c| c != ','))
-            .parse::<usize>()
+            .parse::<i32>()
             .map_err(|_| ParseScoreError::NotANumber(Number::Players))?;
 
         Ok(Score {
             correct,
             board,
             score,
-            ranking: (rank, players),
+            rank,
+            players,
         })
     }
 }
@@ -164,6 +167,32 @@ mod tests {
     use super::Score;
 
     #[test]
+    fn parse_all_correct() {
+        let raw = indoc! {"
+            ✅ ✅ ✅
+            ✅ ✅ ✅
+            ✅ ✅ ✅
+
+            🌎Game Summary🌎
+            Board #41
+            Score: 114.7
+            Rank: 2,213 / 9,015
+            https://geogridgame.com/
+            @geogridgame
+        "};
+
+        let score = raw
+            .parse::<Score>()
+            .expect("should have successfully parsed raw string to Score");
+
+        assert_eq!(score.correct, 9);
+        assert_eq!(score.board, 41);
+        assert_eq!(score.score, 114.7);
+        assert_eq!(score.rank, 2213);
+        assert_eq!(score.players, 9015);
+    }
+
+    #[test]
     fn parse_mixed() {
         let raw = indoc! {"
             ✅ ✅ ✅
@@ -185,7 +214,7 @@ mod tests {
         assert_eq!(score.correct, 8);
         assert_eq!(score.board, 38);
         assert_eq!(score.score, 193.7);
-        assert_eq!(score.ranking.0, 2387);
-        assert_eq!(score.ranking.1, 7102);
+        assert_eq!(score.rank, 2387);
+        assert_eq!(score.players, 7102);
     }
 }

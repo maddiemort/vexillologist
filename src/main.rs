@@ -1,5 +1,5 @@
 use anyhow::Context as _;
-use serenity::prelude::*;
+use serenity::{gateway::ActivityData, prelude::*};
 use shuttle_runtime::SecretStore;
 use sqlx::PgPool;
 use tracing::info;
@@ -53,8 +53,9 @@ async fn serenity(
 
     let client = Client::builder(&token, intents)
         .event_handler(Bot { db_pool })
+        .activity(ActivityData::custom("Watching for scores"))
         .await
-        .expect("Err creating client");
+        .expect("should have constructed client");
 
     Ok(client.into())
 }
