@@ -112,7 +112,7 @@ pub struct MedalsEntry {
 }
 
 impl MedalsEntry {
-    fn score(&self) -> usize {
+    fn medal_points(&self) -> usize {
         const GOLD_WEIGHT: usize = 4;
         const SILVER_WEIGHT: usize = 2;
         const BRONZE_WEIGHT: usize = 1;
@@ -125,11 +125,11 @@ impl fmt::Display for MedalsEntry {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "🥇{} 🥈{} 🥉{} (score: {})",
+            "🥇{} 🥈{} 🥉{} (Medal points: {})",
             self.gold,
             self.silver,
             self.bronze,
-            self.score()
+            self.medal_points()
         )
     }
 }
@@ -150,7 +150,7 @@ impl PartialOrd for MedalsEntry {
 
 impl Ord for MedalsEntry {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.score().cmp(&other.score())
+        self.medal_points().cmp(&other.medal_points())
     }
 }
 
