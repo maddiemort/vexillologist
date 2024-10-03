@@ -263,7 +263,7 @@ impl AllTime {
         info!(?medals, "medals table");
 
         let mut medals_listing: Vec<_> = medals.into_iter().collect();
-        medals_listing.sort();
+        medals_listing.sort_by_key(|ml| ml.1);
         medals_listing.reverse();
 
         info!(?medals_listing, "medals listing");
