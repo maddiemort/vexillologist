@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS scores (
-    guild_id BIGINT NOT NULL REFERENCES guilds (id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    guild_id BIGINT NOT NULL REFERENCES guilds (guild_id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL REFERENCES users (user_id) ON DELETE CASCADE,
     correct INTEGER NOT NULL,
     board INTEGER NOT NULL,
     score REAL NOT NULL,
