@@ -223,7 +223,12 @@ impl EventHandler for Bot {
                     .expect("should be able to write into String");
                 }
 
-                embed = embed.description(description);
+                embed = embed
+                    .description(description)
+                    .footer(CreateEmbedFooter::new(
+                        "Medals may change with more submissions! Run `/leaderboard` again to see \
+                         updated scores.",
+                    ));
 
                 CreateInteractionResponseMessage::new()
                     .embed(embed)
