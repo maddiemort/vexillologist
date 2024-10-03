@@ -1,4 +1,9 @@
 /target
+
 /result
 /result-bin
+
+.shuttle-storage
+Secrets*.toml
+
 .env

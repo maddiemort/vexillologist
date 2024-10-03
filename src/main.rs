@@ -1,29 +1,48 @@
-use std::env;
+use anyhow::Context as _;
+use serenity::prelude::*;
+use shuttle_runtime::SecretStore;
+use vexillologist::Bot;
 
-use secrecy::SecretString;
-use tracing::{error, info, level_filters::LevelFilter};
-use tracing_subscriber::EnvFilter;
+// #[tokio::main]
+// async fn main() {
+//     tracing_subscriber::fmt()
+//         .with_env_filter(
+//             EnvFilter::builder()
+//                 .with_default_directive(LevelFilter::INFO.into())
+//                 .from_env_lossy(),
+//         )
+//         .init();
+//
+//     info!("beginning initialization...");
+//
+//     match dotenvy::dotenv() {
+//         Ok(path) => info!(path = %path.display(), "successfully read from .env file"),
+//         Err(error) if error.not_found() => info!("no .env file found, continuing"),
+//         Err(error) => error!(%error, "failed to read from .env file"),
+//     }
+//
+//     let token = env::var("DISCORD_TOKEN").expect("discord token should have been provided");
+//     let token = SecretString::new(token);
+//
+//     vexillologist::run(token).await;
+// }
 
-#[tokio::main]
-async fn main() {
-    tracing_subscriber::fmt()
-        .with_env_filter(
-            EnvFilter::builder()
-                .with_default_directive(LevelFilter::INFO.into())
-                .from_env_lossy(),
-        )
-        .init();
+#[shuttle_runtime::main]
+async fn serenity(
+    #[shuttle_runtime::Secrets] secrets: SecretStore,
+) -> shuttle_serenity::ShuttleSerenity {
+    // Get the discord token set in `Secrets.toml`
+    let token = secrets
+        .get("DISCORD_TOKEN")
+        .context("'DISCORD_TOKEN' was not found")?;
 
-    info!("beginning initialization...");
+    // Set gateway intents, which decides what events the bot will be notified about
+    let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
 
-    match dotenvy::dotenv() {
-        Ok(path) => info!(path = %path.display(), "successfully read from .env file"),
-        Err(error) if error.not_found() => info!("no .env file found, continuing"),
-        Err(error) => error!(%error, "failed to read from .env file"),
-    }
+    let client = Client::builder(&token, intents)
+        .event_handler(Bot)
+        .await
+        .expect("Err creating client");
 
-    let token = env::var("DISCORD_TOKEN").expect("discord token should have been provided");
-    let token = SecretString::new(token);
-
-    vexillologist::run(token).await;
+    Ok(client.into())
 }
