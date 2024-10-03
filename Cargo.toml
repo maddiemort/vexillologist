@@ -5,7 +5,10 @@ edition = "2021"
 publish = false
 
 [dependencies]
+dotenvy = "0.15.7"
+secrecy = "0.8.0"
 tap = "1.0.1"
+tokio = { version = "1.38.0", features = ["full"] }
 tracing = "0.1.40"
 twilight-cache-inmemory = "0.15.4"
 twilight-gateway = "0.15.4"
