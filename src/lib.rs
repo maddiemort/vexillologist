@@ -1,19 +1,26 @@
+use std::fmt::Write;
+
 use serenity::{
-    all::{Command, CommandOptionType, Interaction, ResolvedOption, ResolvedValue},
+    all::{
+        Command, CommandInteraction, CommandOptionType, Interaction, Mention, ResolvedOption,
+        ResolvedValue,
+    },
     async_trait,
     builder::{
-        CreateCommand, CreateCommandOption, CreateInteractionResponse,
-        CreateInteractionResponseMessage,
+        CreateAllowedMentions, CreateCommand, CreateCommandOption, CreateEmbed, CreateEmbedFooter,
+        CreateInteractionResponse, CreateInteractionResponseMessage,
     },
     model::{channel::Message, gateway::Ready},
     prelude::*,
 };
 use sqlx::PgPool;
+use tap::Pipe;
 use tracing::{debug, error, info, warn};
 
-use crate::{persist::ScoreInsertionError, score::Score};
+use crate::{leaderboards::Daily, persist::ScoreInsertionError, score::Score};
 
 pub mod geogrid;
+pub mod leaderboards;
 pub mod persist;
 pub mod score;
 
@@ -115,32 +122,94 @@ impl EventHandler for Bot {
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        async fn process_command(
+            command: &CommandInteraction,
+            db_pool: &PgPool,
+        ) -> CreateInteractionResponseMessage {
+            let options = command.data.options();
+            let Some(ResolvedOption {
+                name: "range",
+                value: ResolvedValue::String(range),
+                ..
+            }) = options.first()
+            else {
+                return CreateInteractionResponseMessage::new()
+                    .content("An unexpected error occurred");
+            };
+
+            let Some(guild_id) = command.guild_id else {
+                warn!("cannot continue without guild ID");
+                return CreateInteractionResponseMessage::new()
+                    .content("This command can only be run in a server!");
+            };
+
+            if *range == "leaderboard_today" {
+                let board = geogrid::board_now();
+                let today = Daily::calculate_for(db_pool, guild_id, board).await;
+
+                let mut embed = CreateEmbed::new().title("Today's Leaderboard").field(
+                    "board",
+                    format!("{}", board),
+                    true,
+                );
+
+                let Ok(today) = today else {
+                    error!(
+                        error = %today.unwrap_err(),
+                        "failed to calculate daily leaderboard"
+                    );
+                    return CreateInteractionResponseMessage::new()
+                        .content("An unexpected error occurred.");
+                };
+
+                let mut description = String::new();
+                for (i, entry) in today.entries.into_iter().enumerate() {
+                    let medal = match i {
+                        0 => " 🥇",
+                        1 => " 🥈",
+                        2 => " 🥉",
+                        _ => "",
+                    };
+
+                    writeln!(
+                        &mut description,
+                        "{}. {} ({} pts, {} correct){}",
+                        i + 1,
+                        Mention::User(entry.user_id),
+                        entry.score,
+                        entry.correct,
+                        medal,
+                    )
+                    .expect("should be able to write into String");
+                }
+
+                embed = embed
+                    .description(description)
+                    .footer(CreateEmbedFooter::new(
+                        "Medals may change with more submissions! Run `/leaderboard` again to see \
+                         updated scores.",
+                    ));
+
+                CreateInteractionResponseMessage::new()
+                    .embed(embed)
+                    .allowed_mentions(CreateAllowedMentions::new())
+            } else if *range == "leaderboard_all_time" {
+                CreateInteractionResponseMessage::new().content("Coming soon!")
+            } else {
+                CreateInteractionResponseMessage::new().content("An unexpected error occurred.")
+            }
+        }
+
         if let Interaction::Command(command) = interaction {
             info!(?command, "received command interaction");
 
-            let response = match command.data.name.as_str() {
-                "leaderboard" => match command.data.options().first() {
-                    Some(ResolvedOption {
-                        value: ResolvedValue::String(_range),
-                        name: "range",
-                        ..
-                    }) => CreateInteractionResponse::Message(
-                        CreateInteractionResponseMessage::new().content("Coming soon!"),
-                    ),
-                    _ => CreateInteractionResponse::Message(
-                        CreateInteractionResponseMessage::new()
-                            .content("An unexpected error occurred"),
-                    ),
-                },
-                name => CreateInteractionResponse::Message(
-                    CreateInteractionResponseMessage::new()
-                        .content(format!("Unrecognized command \"{}\"", name)),
-                ),
-            };
+            let response = process_command(&command, &self.db_pool)
+                .await
+                .pipe(CreateInteractionResponse::Message);
 
             match command.create_response(&ctx.http, response).await {
-                Ok(_) => info!("responded to interaction"),
-                Err(error) => error!(%error, "failed to respond to interaction"),
+                Ok(_) => info!("responded to command"),
+                Err(error) => error!(%error, "failed to respond to command"),
             }
         }
     }
