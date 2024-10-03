@@ -1,10 +1,14 @@
 use std::{error::Error, sync::Arc};
 
 use secrecy::{ExposeSecret, SecretString};
-use tracing::{debug, trace, warn};
+use tracing::{debug, info, trace, warn};
 use twilight_cache_inmemory::{InMemoryCache, ResourceType};
 use twilight_gateway::{Event, Intents, Shard, ShardId};
 use twilight_http::Client as HttpClient;
+
+use crate::score::Score;
+
+pub mod score;
 
 pub async fn run(token: SecretString) {
     // Use intents to only receive guild message events.
@@ -47,12 +51,14 @@ async fn handle_event(
     http: Arc<HttpClient>,
 ) -> Result<(), Box<dyn Error + Send + Sync>> {
     match event {
-        Event::MessageCreate(msg) if msg.content == "!ping" => {
-            trace!("handling a ping event");
-            http.create_message(msg.channel_id)
-                .content("Pong!")?
-                .await?;
-        }
+        Event::MessageCreate(msg) => match msg.content.parse::<Score>() {
+            Ok(score) => {
+                info!(?score, "parsed score");
+            }
+            Err(error) => {
+                debug!(reason = %error, "message isn't a score");
+            }
+        },
         // Other events here...
         _ => {}
     }
