@@ -62,12 +62,12 @@ impl EventHandler for Bot {
     async fn message(&self, ctx: Context, msg: Message) {
         match msg.content.parse::<Score>() {
             Ok(score) => {
-                info!(?score, "parsed score");
-
                 let Some(guild_id) = msg.guild_id else {
-                    warn!("cannot continue without guild ID");
+                    warn!("cannot continue processing message without guild ID");
                     return;
                 };
+
+                info!(?score, %guild_id, "parsed score");
 
                 match persist::insert_score(&self.db_pool, score, guild_id, &msg.author).await {
                     Ok(inserted_score) => {
@@ -130,6 +130,14 @@ impl EventHandler for Bot {
             command: &CommandInteraction,
             db_pool: &PgPool,
         ) -> CreateInteractionResponseMessage {
+            let Some(guild_id) = command.guild_id else {
+                warn!("cannot continue processing interaction without guild ID");
+                return CreateInteractionResponseMessage::new()
+                    .content("This command can only be run in a server!");
+            };
+
+            info!(%guild_id, "received command interaction");
+
             let options = command.data.options();
             let Some(ResolvedOption {
                 name: "range",
@@ -139,12 +147,6 @@ impl EventHandler for Bot {
             else {
                 return CreateInteractionResponseMessage::new()
                     .content("An unexpected error occurred");
-            };
-
-            let Some(guild_id) = command.guild_id else {
-                warn!("cannot continue without guild ID");
-                return CreateInteractionResponseMessage::new()
-                    .content("This command can only be run in a server!");
             };
 
             if *range == "leaderboard_today" {
@@ -239,8 +241,6 @@ impl EventHandler for Bot {
         }
 
         if let Interaction::Command(command) = interaction {
-            info!("received command interaction");
-
             let response = process_command(&command, &self.db_pool)
                 .await
                 .pipe(CreateInteractionResponse::Message);
