@@ -1,4 +1,6 @@
-use indoc::indoc;
+use std::{collections::HashMap, fmt};
+
+use indoc::{formatdoc, indoc};
 use serenity::all::{GuildId, UserId};
 use sqlx::{Error as SqlxError, FromRow, PgPool};
 use thiserror::Error;
@@ -17,8 +19,8 @@ pub struct DailyEntry {
     pub score: f32,
 }
 
-impl From<DailyEntryRow> for DailyEntry {
-    fn from(row: DailyEntryRow) -> Self {
+impl From<DailyQueryRow> for DailyEntry {
+    fn from(row: DailyQueryRow) -> Self {
         Self {
             user_id: UserId::new(row.user_id as u64),
             username: row.username,
@@ -29,7 +31,7 @@ impl From<DailyEntryRow> for DailyEntry {
 }
 
 #[derive(Clone, Debug, FromRow)]
-struct DailyEntryRow {
+struct DailyQueryRow {
     user_id: i64,
     username: String,
     correct: i32,
@@ -77,7 +79,7 @@ impl Daily {
 
                 rows.into_iter()
                     .map(|row| {
-                        DailyEntryRow::from_row(&row)
+                        DailyQueryRow::from_row(&row)
                             .map(|row| {
                                 #[cfg(debug_assertions)]
                                 debug!(?row, "got leaderboard entry");
@@ -94,5 +96,164 @@ impl Daily {
         };
 
         Ok(Daily { entries })
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct AllTime {
+    pub medals_listing: Vec<(UserId, MedalsEntry)>,
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MedalsEntry {
+    gold: usize,
+    silver: usize,
+    bronze: usize,
+}
+
+impl fmt::Display for MedalsEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "🥇{} 🥈{} 🥉{}", self.gold, self.silver, self.bronze)
+    }
+}
+
+impl PartialEq for MedalsEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.gold == other.gold && self.silver == other.silver && self.bronze == other.bronze
+    }
+}
+
+impl Eq for MedalsEntry {}
+
+impl PartialOrd for MedalsEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for MedalsEntry {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.gold
+            .cmp(&other.gold)
+            .then(self.silver.cmp(&other.silver))
+            .then(self.bronze.cmp(&other.bronze))
+    }
+}
+
+#[derive(Clone, Debug, FromRow)]
+struct AllTimeQueryRow {
+    user_id: i64,
+    place: i64,
+}
+
+#[derive(Debug, Error)]
+pub enum CalculateAllTimeError {
+    #[error("failed to extract data from row: {0}")]
+    FromRow(#[source] SqlxError),
+
+    #[error("unexpected SQLx error: {0}")]
+    Unexpected(SqlxError),
+
+    #[error("unexpectedly received out-of-bounds place value from query: {0}")]
+    PlaceOutOfBounds(i64),
+}
+
+impl AllTime {
+    pub async fn calculate(
+        db_pool: &PgPool,
+        guild_id: GuildId,
+        end_day: usize,
+        include_end: bool,
+        include_late: bool,
+    ) -> Result<Self, CalculateAllTimeError> {
+        let board_clause = if include_end {
+            "AND s.board <= $2"
+        } else {
+            "AND s.board < $2"
+        };
+
+        let late_clause = if include_late {
+            ""
+        } else {
+            "AND s.board = s.day_added"
+        };
+
+        let get_scores_string = formatdoc!(
+            "
+            WITH cte AS (
+                SELECT
+                    s.user_id,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY s.board
+                        ORDER BY s.score ASC
+                    ) as place
+                FROM
+                    scores s
+                    INNER JOIN users u USING (user_id)
+                WHERE
+                    s.guild_id = $1
+                    {}
+                    {}
+            )
+            SELECT
+                user_id,
+                place
+            FROM cte
+            WHERE place <= 3
+            ORDER BY place;
+            ",
+            board_clause,
+            late_clause
+        );
+        let get_scores = sqlx::query(get_scores_string.as_ref());
+        let medals = match get_scores
+            .bind(guild_id.get() as i64)
+            .bind(end_day as i32)
+            .fetch_all(db_pool)
+            .await
+        {
+            Ok(rows) => {
+                info!(num = %rows.len(), "fetched all scores");
+
+                let rows = rows
+                    .into_iter()
+                    .map(|row| {
+                        AllTimeQueryRow::from_row(&row).map_err(CalculateAllTimeError::FromRow)
+                    })
+                    .collect::<Result<Vec<_>, CalculateAllTimeError>>()?;
+
+                let mut medals = HashMap::<UserId, MedalsEntry>::default();
+
+                for row in rows {
+                    debug!(?row, "got row");
+
+                    let id = UserId::new(row.user_id as u64);
+                    let entry = medals.entry(id).or_insert_with(MedalsEntry::default);
+
+                    match row.place {
+                        1 => entry.gold += 1,
+                        2 => entry.silver += 1,
+                        3 => entry.bronze += 1,
+                        _ => return Err(CalculateAllTimeError::PlaceOutOfBounds(row.place)),
+                    }
+                }
+
+                medals
+            }
+            Err(error) => {
+                error!(%error, "failed to fetch all scores");
+                return Err(CalculateAllTimeError::Unexpected(error));
+            }
+        };
+
+        info!(?medals, "medals table");
+
+        let mut medals_listing: Vec<_> = medals.into_iter().collect();
+        medals_listing.sort();
+        medals_listing.reverse();
+
+        info!(?medals_listing, "medals listing");
+
+        Ok(AllTime { medals_listing })
     }
 }

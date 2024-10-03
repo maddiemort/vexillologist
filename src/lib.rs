@@ -17,7 +17,11 @@ use sqlx::PgPool;
 use tap::Pipe;
 use tracing::{debug, error, info, warn};
 
-use crate::{leaderboards::Daily, persist::ScoreInsertionError, score::Score};
+use crate::{
+    leaderboards::{AllTime, Daily},
+    persist::ScoreInsertionError,
+    score::Score,
+};
 
 pub mod geogrid;
 pub mod leaderboards;
@@ -194,14 +198,43 @@ impl EventHandler for Bot {
                     .embed(embed)
                     .allowed_mentions(CreateAllowedMentions::new())
             } else if *range == "leaderboard_all_time" {
-                CreateInteractionResponseMessage::new().content("Coming soon!")
+                let board = geogrid::board_now();
+                let all_time = AllTime::calculate(db_pool, guild_id, board, true, true).await;
+                let Ok(all_time) = all_time else {
+                    error!(error = %all_time.unwrap_err(), "failed to calculate all-time leaderboard");
+                    return CreateInteractionResponseMessage::new()
+                        .content("An unexpected error occurred.");
+                };
+
+                let mut embed = CreateEmbed::new()
+                    .title("All-Time Leaderboard")
+                    .field(format!("Includes today's board (#{})?", board), "Yes", true)
+                    .field("Includes late submissions?", "Yes", true);
+
+                let mut description = String::new();
+                for (i, (user_id, medals)) in all_time.medals_listing.into_iter().enumerate() {
+                    writeln!(
+                        &mut description,
+                        "{}. {}: {}",
+                        i + 1,
+                        Mention::User(user_id),
+                        medals,
+                    )
+                    .expect("should be able to write into String");
+                }
+
+                embed = embed.description(description);
+
+                CreateInteractionResponseMessage::new()
+                    .embed(embed)
+                    .allowed_mentions(CreateAllowedMentions::new())
             } else {
                 CreateInteractionResponseMessage::new().content("An unexpected error occurred.")
             }
         }
 
         if let Interaction::Command(command) = interaction {
-            info!(?command, "received command interaction");
+            info!("received command interaction");
 
             let response = process_command(&command, &self.db_pool)
                 .await
