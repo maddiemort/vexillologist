@@ -1,0 +1,7 @@
+[toolchain]
+channel = "1.79.0"
+components = [
+    "rust-src",
+    "rust-std",
+    "rust-analyzer",
+]
