@@ -41,15 +41,27 @@ impl EventHandler for Bot {
             &ctx.http,
             CreateCommand::new("leaderboard")
                 .description("View the leaderboard")
+                .add_option(CreateCommandOption::new(
+                    CommandOptionType::SubCommand,
+                    "today",
+                    "View the leaderboard for today",
+                ))
                 .add_option(
                     CreateCommandOption::new(
-                        CommandOptionType::String,
-                        "range",
-                        "The time range of the leaderboard to view",
+                        CommandOptionType::SubCommand,
+                        "all_time",
+                        "View the all-time leaderboard",
                     )
-                    .add_string_choice("Today", "leaderboard_today")
-                    .add_string_choice("All Time", "leaderboard_all_time")
-                    .required(true),
+                    .add_sub_option(CreateCommandOption::new(
+                        CommandOptionType::Boolean,
+                        "include_today",
+                        "Include today's scores in the all-time leaderboard?",
+                    ))
+                    .add_sub_option(CreateCommandOption::new(
+                        CommandOptionType::Boolean,
+                        "include_late",
+                        "Include score submissions that were entered after the day ended?",
+                    )),
                 ),
         )
         .await
@@ -140,8 +152,8 @@ impl EventHandler for Bot {
 
             let options = command.data.options();
             let Some(ResolvedOption {
-                name: "range",
-                value: ResolvedValue::String(range),
+                name,
+                value: ResolvedValue::SubCommand(options),
                 ..
             }) = options.first()
             else {
@@ -149,7 +161,7 @@ impl EventHandler for Bot {
                     .content("An unexpected error occurred");
             };
 
-            if *range == "leaderboard_today" {
+            if *name == "today" {
                 let board = geogrid::board_now();
                 let today = Daily::calculate_for(db_pool, guild_id, board).await;
 
@@ -199,9 +211,42 @@ impl EventHandler for Bot {
                 CreateInteractionResponseMessage::new()
                     .embed(embed)
                     .allowed_mentions(CreateAllowedMentions::new())
-            } else if *range == "leaderboard_all_time" {
+            } else if *name == "all_time" {
+                let include_today = options
+                    .iter()
+                    .find_map(|opt| {
+                        if let ResolvedOption {
+                            name: "include_today",
+                            value: ResolvedValue::Boolean(value),
+                            ..
+                        } = opt
+                        {
+                            Some(*value)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(true);
+
+                let include_late = options
+                    .iter()
+                    .find_map(|opt| {
+                        if let ResolvedOption {
+                            name: "include_late",
+                            value: ResolvedValue::Boolean(value),
+                            ..
+                        } = opt
+                        {
+                            Some(*value)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(true);
+
                 let board = geogrid::board_now();
-                let all_time = AllTime::calculate(db_pool, guild_id, board, true, true).await;
+                let all_time =
+                    AllTime::calculate(db_pool, guild_id, board, include_today, include_late).await;
                 let Ok(all_time) = all_time else {
                     error!(error = %all_time.unwrap_err(), "failed to calculate all-time leaderboard");
                     return CreateInteractionResponseMessage::new()
@@ -210,8 +255,16 @@ impl EventHandler for Bot {
 
                 let mut embed = CreateEmbed::new()
                     .title("All-Time Leaderboard")
-                    .field(format!("Includes today's board (#{})?", board), "Yes", true)
-                    .field("Includes late submissions?", "Yes", true);
+                    .field(
+                        format!("Includes today's board (#{})?", board),
+                        if include_today { "Yes" } else { "No" },
+                        true,
+                    )
+                    .field(
+                        "Includes late submissions?",
+                        if include_late { "Yes" } else { "No" },
+                        true,
+                    );
 
                 let mut description = String::new();
                 for (i, (user_id, medals)) in all_time.medals_listing.into_iter().enumerate() {
