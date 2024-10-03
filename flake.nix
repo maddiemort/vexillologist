@@ -86,6 +86,7 @@
           convco
           nixpkgs-fmt
           rust-toolchain
+          sqlx-cli
 
           libiconv
         ] ++ (optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [

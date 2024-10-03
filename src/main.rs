@@ -1,6 +1,8 @@
 use anyhow::Context as _;
 use serenity::prelude::*;
 use shuttle_runtime::SecretStore;
+use sqlx::PgPool;
+use tracing::info;
 use vexillologist::Bot;
 
 // #[tokio::main]
@@ -30,7 +32,17 @@ use vexillologist::Bot;
 #[shuttle_runtime::main]
 async fn serenity(
     #[shuttle_runtime::Secrets] secrets: SecretStore,
+    #[shuttle_shared_db::Postgres] db_pool: PgPool,
 ) -> shuttle_serenity::ShuttleSerenity {
+    info!("running migrations...");
+
+    sqlx::migrate!()
+        .run(&db_pool)
+        .await
+        .expect("migrations should have succeeded");
+
+    info!("migrations finished");
+
     // Get the discord token set in `Secrets.toml`
     let token = secrets
         .get("DISCORD_TOKEN")
@@ -40,7 +52,7 @@ async fn serenity(
     let intents = GatewayIntents::GUILD_MESSAGES | GatewayIntents::MESSAGE_CONTENT;
 
     let client = Client::builder(&token, intents)
-        .event_handler(Bot)
+        .event_handler(Bot { db_pool })
         .await
         .expect("Err creating client");
 
