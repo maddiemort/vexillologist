@@ -242,7 +242,7 @@ impl EventHandler for Bot {
                             None
                         }
                     })
-                    .unwrap_or(true);
+                    .unwrap_or(false);
 
                 let board = geogrid::board_now();
                 let all_time =
