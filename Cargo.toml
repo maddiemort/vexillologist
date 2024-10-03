@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 anyhow = "1.0.66"
+chrono = "0.4.38"
 indoc = "2.0.5"
 shuttle-runtime = "0.46.0"
 shuttle-serenity = "0.46.0"

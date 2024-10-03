@@ -6,5 +6,6 @@ CREATE TABLE IF NOT EXISTS scores (
     score REAL NOT NULL,
     rank INTEGER NOT NULL,
     players INTEGER NOT NULL,
+    day_added INTEGER NOT NULL,
     UNIQUE (guild_id, user_id, board)
 );

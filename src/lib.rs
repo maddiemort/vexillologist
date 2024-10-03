@@ -1,4 +1,3 @@
-use indoc::indoc;
 use serenity::{
     all::{Command, CommandOptionType, Interaction, ResolvedOption, ResolvedValue},
     async_trait,
@@ -9,13 +8,10 @@ use serenity::{
     model::{channel::Message, gateway::Ready},
     prelude::*,
 };
-use sqlx::{Error, PgPool, Row};
+use sqlx::PgPool;
 use tracing::{debug, error, info, warn};
 
-use crate::{
-    persist::{GuildUser, User},
-    score::Score,
-};
+use crate::{persist::ScoreInsertionError, score::Score};
 
 pub mod geogrid;
 pub mod persist;
@@ -57,197 +53,58 @@ impl EventHandler for Bot {
             Ok(score) => {
                 info!(?score, "parsed score");
 
-                let user_id = msg.author.id;
-                let username = msg.author.tag();
-
                 let Some(guild_id) = msg.guild_id else {
                     warn!("cannot continue without guild ID");
                     return;
                 };
 
-                let insert_guilds = sqlx::query(indoc! {"
-                    INSERT
-                        INTO guilds (id)
-                        VALUES ($1)
-                    ON CONFLICT (id) DO NOTHING;
-                "});
-
-                match insert_guilds
-                    .bind(guild_id.get() as i64)
-                    .execute(&self.db_pool)
-                    .await
-                {
-                    Ok(result) if result.rows_affected() > 0 => info!("inserted new guild"),
-                    Ok(_) => info!("guild already exists in guilds table"),
-                    Err(error) => error!(%error, "failed to insert guild"),
-                }
-
-                let insert_users = sqlx::query(indoc! {"
-                    INSERT
-                        INTO users (id, username)
-                        VALUES ($1, $2)
-                    ON CONFLICT (id) DO UPDATE
-                        SET username = EXCLUDED.username;
-                "});
-
-                match insert_users
-                    .bind(user_id.get() as i64)
-                    .bind(username)
-                    .execute(&self.db_pool)
-                    .await
-                {
-                    Ok(_) => info!("inserted new user or updated existing"),
-                    Err(error) => error!(%error, "failed to insert user"),
-                }
-
-                let insert_guild_users = sqlx::query(indoc! {"
-                    INSERT
-                        INTO guild_users (guild_id, user_id)
-                        VALUES ($1, $2)
-                    ON CONFLICT DO NOTHING;
-                "});
-
-                match insert_guild_users
-                    .bind(guild_id.get() as i64)
-                    .bind(user_id.get() as i64)
-                    .execute(&self.db_pool)
-                    .await
-                {
-                    Ok(result) if result.rows_affected() > 0 => info!("inserted new guild user"),
-                    Ok(_) => info!("guild user already exists in guild_users table"),
-                    Err(error) => error!(%error, "failed to insert guild user"),
-                }
-
-                let insert_score = sqlx::query(indoc! {"
-                    INSERT
-                        INTO scores (guild_id, user_id, correct, board, score, rank, players)
-                        VALUES ($1, $2, $3, $4, $5, $6, $7);
-                "});
-
-                let accepted = match insert_score
-                    .bind(guild_id.get() as i64)
-                    .bind(user_id.get() as i64)
-                    .bind(score.correct)
-                    .bind(score.board)
-                    .bind(score.score)
-                    .bind(score.rank)
-                    .bind(score.players)
-                    .execute(&self.db_pool)
-                    .await
-                {
-                    Ok(_) => {
-                        info!("inserted new score");
+                match persist::insert_score(&self.db_pool, score, guild_id, &msg.author).await {
+                    Ok(inserted_score) => {
                         match msg.react(&ctx.http, '✅').await {
                             Ok(_) => info!(reaction = %'✅', "reacted to new score"),
                             Err(error) => {
                                 error!(%error, reaction = %'✅', "failed to react to new score")
                             }
                         }
-                        true
-                    }
-                    Err(Error::Database(db_err)) if db_err.is_unique_violation() => {
-                        info!("score was a duplicate");
-                        match msg.react(&ctx.http, '🗞').await {
-                            Ok(_) => info!(reaction = %'🗞', "reacted to duplicate score"),
-                            Err(error) => {
-                                error!(%error, reaction = %'🗞', "failed to react to duplicate score")
-                            }
-                        }
-                        false
-                    }
-                    Err(error) => {
-                        error!(%error, "failed to insert score");
-                        false
-                    }
-                };
 
-                if accepted {
-                    let get_best_score = sqlx::query(indoc! {"
-                        SELECT user_id FROM scores
-                        WHERE
-                            guild_id = $1 AND
-                            board = $2
-                        ORDER BY score ASC
-                        LIMIT 1;
-                    "});
-
-                    match get_best_score
-                        .bind(guild_id.get() as i64)
-                        .bind(score.board)
-                        .fetch_one(&self.db_pool)
-                        .await
-                        .and_then(|row| row.try_get::<i64, _>(0))
-                    {
-                        Ok(best_user_id) => {
-                            info!(
-                                %best_user_id,
-                                board = %score.board,
-                                "got best score for this board"
-                            );
-
-                            if best_user_id == user_id.get() as i64 {
-                                match msg.react(&ctx.http, '✨').await {
-                                    Ok(_) => info!(reaction = %'✨', "reacted to best score"),
-                                    Err(error) => {
-                                        error!(%error, reaction = %'✨', "failed to react to best score")
-                                    }
+                        if inserted_score.best_so_far && inserted_score.on_time {
+                            match msg.react(&ctx.http, '✨').await {
+                                Ok(_) => info!(reaction = %'✨', "reacted to today's best score"),
+                                Err(error) => {
+                                    error!(
+                                        %error,
+                                        reaction = %'✨',
+                                        "failed to react to today's best score"
+                                    )
                                 }
                             }
                         }
+                    }
+                    Err(ScoreInsertionError::Duplicate) => match msg.react(&ctx.http, '🗞').await
+                    {
+                        Ok(_) => info!(reaction = %'🗞', "reacted to duplicate score"),
                         Err(error) => {
-                            error!(
-                                %error,
-                                board = %score.board,
-                                "failed to get current best score for this board"
+                            error!(%error, reaction = %'🗞', "failed to react to duplicate score")
+                        }
+                    },
+                    Err(error) => {
+                        error!(%error, "failed to insert score");
+
+                        match msg
+                            .reply_ping(
+                                &ctx.http,
+                                format!("Failed to record score ({}). Please try again!", error),
                             )
+                            .await
+                        {
+                            Ok(_) => info!("responded to score with error message"),
+                            Err(error) => {
+                                error!(
+                                    %error,
+                                    "failed to respond with error message"
+                                )
+                            }
                         }
-                    }
-                }
-
-                #[cfg(debug_assertions)]
-                match sqlx::query_as::<_, User>("SELECT id, username FROM users")
-                    .fetch_all(&self.db_pool)
-                    .await
-                {
-                    Ok(users) => {
-                        for user in users {
-                            debug!(?user, "user");
-                        }
-                    }
-                    Err(error) => {
-                        error!(%error, "failed to get users");
-                    }
-                }
-
-                #[cfg(debug_assertions)]
-                match sqlx::query_as::<_, GuildUser>("SELECT guild_id, user_id FROM guild_users")
-                    .fetch_all(&self.db_pool)
-                    .await
-                {
-                    Ok(guild_users) => {
-                        for guild_user in guild_users {
-                            debug!(?guild_user, "guild user");
-                        }
-                    }
-                    Err(error) => {
-                        error!(%error, "failed to get guild users");
-                    }
-                }
-
-                #[cfg(debug_assertions)]
-                match sqlx::query_as::<_, Score>(
-                    "SELECT correct, board, score, rank, players FROM scores",
-                )
-                .fetch_all(&self.db_pool)
-                .await
-                {
-                    Ok(scores) => {
-                        for score in scores {
-                            debug!(?score, "score");
-                        }
-                    }
-                    Err(error) => {
-                        error!(%error, "failed to get scores");
                     }
                 }
             }

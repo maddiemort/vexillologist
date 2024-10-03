@@ -1,16 +1,15 @@
 use core::fmt;
 use std::str::FromStr;
 
-use sqlx::FromRow;
 use thiserror::Error;
 
-#[derive(Clone, Debug, PartialEq, FromRow)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Score {
-    pub correct: i32,
-    pub board: i32,
+    pub correct: usize,
+    pub board: usize,
     pub score: f32,
-    pub rank: i32,
-    pub players: i32,
+    pub rank: usize,
+    pub players: usize,
 }
 
 impl FromStr for Score {
@@ -41,7 +40,7 @@ impl FromStr for Score {
             return Err(ParseScoreError::InvalidFormat(Section::Grid));
         }
 
-        let correct = grid.into_iter().filter(|&v| v).count() as i32;
+        let correct = grid.into_iter().filter(|&v| v).count();
 
         if lines
             .next()
@@ -61,7 +60,7 @@ impl FromStr for Score {
             .ok_or(ParseScoreError::Truncated)?
             .strip_prefix("Board #")
             .ok_or(ParseScoreError::Missing(Section::BoardNumber))?
-            .parse::<i32>()
+            .parse::<usize>()
             .map_err(|_| ParseScoreError::NotANumber(Number::Board))?;
 
         let score = lines
@@ -83,11 +82,11 @@ impl FromStr for Score {
             .ok_or(ParseScoreError::InvalidFormat(Section::Ranking))?;
 
         let rank = String::from_iter(rank_raw.chars().filter(|&c| c != ','))
-            .parse::<i32>()
+            .parse::<usize>()
             .map_err(|_| ParseScoreError::NotANumber(Number::Rank))?;
 
         let players = String::from_iter(players_raw.chars().filter(|&c| c != ','))
-            .parse::<i32>()
+            .parse::<usize>()
             .map_err(|_| ParseScoreError::NotANumber(Number::Players))?;
 
         Ok(Score {
