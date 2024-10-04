@@ -56,7 +56,7 @@ impl Daily {
                 s.correct,
                 s.score
             FROM
-                scores s
+                geogrid_scores s
                 INNER JOIN users u USING (user_id)
             WHERE
                 s.guild_id = $1
@@ -198,7 +198,7 @@ impl AllTime {
                         ORDER BY s.score ASC
                     ) as place
                 FROM
-                    scores s
+                    geogrid_scores s
                     INNER JOIN users u USING (user_id)
                 WHERE
                     s.guild_id = $1

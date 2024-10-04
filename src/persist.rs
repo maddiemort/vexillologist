@@ -212,7 +212,7 @@ pub async fn insert_score(
     let score_row = ScoreRow::from_score_now(score, guild_id, user.id);
 
     let insert_score = sqlx::query(indoc! {"
-        INSERT INTO scores (
+        INSERT INTO geogrid_scores (
             guild_id,
             user_id,
             correct,
@@ -251,7 +251,7 @@ pub async fn insert_score(
     }
 
     let get_best_score = sqlx::query(indoc! {"
-        SELECT user_id FROM scores
+        SELECT user_id FROM geogrid_scores
         WHERE
             guild_id = $1
             AND board = $2
@@ -325,7 +325,7 @@ pub async fn insert_score(
     }
 
     #[cfg(debug_assertions)]
-    match sqlx::query_as::<_, ScoreRow>("SELECT * FROM scores")
+    match sqlx::query_as::<_, ScoreRow>("SELECT * FROM geogrid_scores")
         .fetch_all(db_pool)
         .await
     {
