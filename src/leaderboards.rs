@@ -14,7 +14,6 @@ pub struct Daily {
 #[derive(Clone, Debug)]
 pub struct DailyEntry {
     pub user_id: UserId,
-    pub username: String,
     pub correct: usize,
     pub score: f32,
 }
@@ -23,7 +22,6 @@ impl From<DailyQueryRow> for DailyEntry {
     fn from(row: DailyQueryRow) -> Self {
         Self {
             user_id: UserId::new(row.user_id as u64),
-            username: row.username,
             correct: row.correct as usize,
             score: row.score,
         }
@@ -33,7 +31,6 @@ impl From<DailyQueryRow> for DailyEntry {
 #[derive(Clone, Debug, FromRow)]
 struct DailyQueryRow {
     user_id: i64,
-    username: String,
     correct: i32,
     score: f32,
 }
@@ -56,7 +53,6 @@ impl Daily {
         let get_scores = sqlx::query(indoc! {"
             SELECT
                 s.user_id,
-                u.username,
                 s.correct,
                 s.score
             FROM

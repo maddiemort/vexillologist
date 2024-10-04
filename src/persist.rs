@@ -12,7 +12,6 @@ use crate::{geogrid, score::Score};
 #[derive(Clone, Debug, FromRow)]
 pub struct UserRow {
     pub user_id: i64,
-    pub username: String,
 }
 
 #[derive(Clone, Debug, FromRow)]
@@ -169,14 +168,12 @@ pub async fn insert_score(
     }
 
     let insert_users = sqlx::query(indoc! {"
-        INSERT INTO users (user_id, username)
-        VALUES ($1, $2)
-        ON CONFLICT (user_id) DO UPDATE
-            SET username = EXCLUDED.username;
+        INSERT INTO users (user_id)
+        VALUES ($1)
+        ON CONFLICT (user_id) DO NOTHING;
     "});
     match insert_users
         .bind(user.id.get() as i64)
-        .bind(user.tag())
         .execute(txn.as_mut())
         .await
     {
@@ -298,7 +295,7 @@ pub async fn insert_score(
     txn.commit().await.map_err(ScoreInsertionError::CommitTxn)?;
 
     #[cfg(debug_assertions)]
-    match sqlx::query_as::<_, UserRow>("SELECT user_id, username FROM users")
+    match sqlx::query_as::<_, UserRow>("SELECT user_id FROM users")
         .fetch_all(db_pool)
         .await
     {
