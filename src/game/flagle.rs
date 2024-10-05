@@ -205,7 +205,7 @@ impl super::Score for Score {
                 AND user_id != $2
                 AND board = $3
                 AND board = day_added
-            ORDER BY score ASC
+            ORDER BY score DESC
             LIMIT 1;
         "});
         let best_so_far = match get_best_score
