@@ -6,6 +6,7 @@ use thiserror::Error;
 
 use crate::persist::InsertionTarget;
 
+pub mod flagle;
 pub mod geogrid;
 
 pub trait Game {
@@ -34,6 +35,10 @@ pub enum CalculateDailyError {
 
     #[error("unexpected SQLx error: {0}")]
     Unexpected(SqlxError),
+
+    #[cfg(debug_assertions)]
+    #[error("not implemented yet")]
+    Todo,
 }
 
 #[derive(Debug, Error)]
@@ -46,6 +51,10 @@ pub enum CalculateAllTimeError {
 
     #[error("unexpectedly received out-of-bounds place value from query: {0}")]
     PlaceOutOfBounds(i64),
+
+    #[cfg(debug_assertions)]
+    #[error("not implemented yet")]
+    Todo,
 }
 
 pub trait Score: FromStr + fmt::Debug {
@@ -76,6 +85,10 @@ pub enum ScoreInsertionError {
         #[source]
         error: SqlxError,
     },
+
+    #[cfg(debug_assertions)]
+    #[error("not implemented yet")]
+    Todo,
 }
 
 pub trait InsertedScore {

@@ -17,7 +17,9 @@ use sqlx::PgPool;
 use tap::Pipe;
 use tracing::{debug, error, info, instrument, warn};
 
-use crate::game::{geogrid::GeoGrid, Game, InsertedScore, Score, ScoreInsertionError};
+use crate::game::{
+    flagle::Flagle, geogrid::GeoGrid, Game, InsertedScore, Score, ScoreInsertionError,
+};
 
 pub mod game;
 pub mod persist;
@@ -48,7 +50,8 @@ impl EventHandler for Bot {
                             "The game to view the leaderboard for",
                         )
                         .required(true)
-                        .add_string_choice("GeoGrid", "geogrid"),
+                        .add_string_choice("GeoGrid", "geogrid")
+                        .add_string_choice("Flagle", "flagle"),
                     ),
                 )
                 .add_option(
@@ -64,7 +67,8 @@ impl EventHandler for Bot {
                             "The game to view the leaderboard for",
                         )
                         .required(true)
-                        .add_string_choice("GeoGrid", "geogrid"),
+                        .add_string_choice("GeoGrid", "geogrid")
+                        .add_string_choice("Flagle", "flagle"),
                     )
                     .add_sub_option(CreateCommandOption::new(
                         CommandOptionType::Boolean,
@@ -94,6 +98,17 @@ impl EventHandler for Bot {
         match msg.content.parse::<<GeoGrid as Game>::Score>() {
             Ok(score) => {
                 self.process_score::<GeoGrid>(score, ctx, msg, guild_id)
+                    .await;
+                return;
+            }
+            Err(error) => {
+                debug!(reason = %error, "message isn't a Geogrid score");
+            }
+        }
+
+        match msg.content.parse::<<Flagle as Game>::Score>() {
+            Ok(score) => {
+                self.process_score::<Flagle>(score, ctx, msg, guild_id)
                     .await;
                 return;
             }
@@ -147,6 +162,9 @@ impl EventHandler for Bot {
             if *name == "today" {
                 let embed = match game {
                     "geogrid" => GeoGrid::daily_leaderboard(db_pool, guild_id)
+                        .await
+                        .map(Into::into),
+                    "flagle" => Flagle::daily_leaderboard(db_pool, guild_id)
                         .await
                         .map(Into::into),
                     _ => {
@@ -207,6 +225,11 @@ impl EventHandler for Bot {
                     )
                     .await
                     .map(Into::into),
+                    "flagle" => {
+                        Flagle::all_time_leaderboard(db_pool, guild_id, include_today, include_late)
+                            .await
+                            .map(Into::into)
+                    }
                     _ => {
                         return CreateInteractionResponseMessage::new()
                             .content(format!("Unknown game \"{}\"!", game))

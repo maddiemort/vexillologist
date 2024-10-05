@@ -13,7 +13,7 @@ use crate::game::{
 };
 
 pub mod leaderboards;
-mod persist;
+pub mod persist;
 pub mod utils;
 
 pub struct GeoGrid;
