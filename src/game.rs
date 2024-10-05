@@ -4,7 +4,7 @@ use serenity::all::{CreateEmbed, GuildId, User};
 use sqlx::{Error as SqlxError, PgPool};
 use thiserror::Error;
 
-use crate::persist::InsertionTarget;
+use crate::persist::{GuildUserInsertionError, InsertionTarget};
 
 pub mod flagle;
 pub mod geogrid;
@@ -89,6 +89,9 @@ pub enum ScoreInsertionError {
     #[cfg(debug_assertions)]
     #[error("not implemented yet")]
     Todo,
+
+    #[error(transparent)]
+    GuildUserInsertion(#[from] GuildUserInsertionError),
 }
 
 pub trait InsertedScore {

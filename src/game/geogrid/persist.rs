@@ -9,7 +9,7 @@ use crate::{
         geogrid::{utils, Score},
         ScoreInsertionError,
     },
-    persist::{GuildUserRow, InsertionTarget, UserRow},
+    persist::{insert_guild_user, GuildUserRow, InsertionTarget, UserRow},
 };
 
 #[derive(Clone, Debug, FromRow)]
@@ -99,74 +99,7 @@ pub async fn insert_score(
         .await
         .map_err(ScoreInsertionError::BeginTxn)?;
 
-    let insert_guilds = sqlx::query(indoc! {"
-        INSERT INTO guilds (guild_id)
-        VALUES ($1)
-        ON CONFLICT (guild_id) DO NOTHING;
-    "});
-    match insert_guilds
-        .bind(guild_id.get() as i64)
-        .execute(txn.as_mut())
-        .await
-    {
-        Ok(result) if result.rows_affected() > 0 => info!(
-            guild_id = %guild_id.get() as i64,
-            "inserted new guild"
-        ),
-        Ok(_) => debug!(
-            guild_id = %guild_id.get() as i64,
-            "guild already exists in guilds table"
-        ),
-        Err(error) => {
-            error!(%error, "failed to insert guild");
-            return Err(ScoreInsertionError::UnexpectedSqlx {
-                target: InsertionTarget::Guild,
-                error,
-            });
-        }
-    }
-
-    let insert_users = sqlx::query(indoc! {"
-        INSERT INTO users (user_id)
-        VALUES ($1)
-        ON CONFLICT (user_id) DO NOTHING;
-    "});
-    match insert_users
-        .bind(user.id.get() as i64)
-        .execute(txn.as_mut())
-        .await
-    {
-        Ok(_) => info!("inserted new user or updated existing"),
-        Err(error) => {
-            error!(%error, "failed to insert user");
-            return Err(ScoreInsertionError::UnexpectedSqlx {
-                target: InsertionTarget::User,
-                error,
-            });
-        }
-    }
-
-    let insert_guild_users = sqlx::query(indoc! {"
-        INSERT INTO guild_users (guild_id, user_id)
-        VALUES ($1, $2)
-        ON CONFLICT DO NOTHING;
-    "});
-    match insert_guild_users
-        .bind(guild_id.get() as i64)
-        .bind(user.id.get() as i64)
-        .execute(txn.as_mut())
-        .await
-    {
-        Ok(result) if result.rows_affected() > 0 => info!("inserted new guild user"),
-        Ok(_) => debug!("guild user already exists in guild_users table"),
-        Err(error) => {
-            error!(%error, "failed to insert guild user");
-            return Err(ScoreInsertionError::UnexpectedSqlx {
-                target: InsertionTarget::GuildUser,
-                error,
-            });
-        }
-    }
+    insert_guild_user(&mut txn, guild_id, user).await?;
 
     let score_row = ScoreRow::from_score_now(score, guild_id, user.id);
 
