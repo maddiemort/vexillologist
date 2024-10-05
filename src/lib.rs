@@ -41,16 +41,36 @@ impl EventHandler for Bot {
             &ctx.http,
             CreateCommand::new("leaderboard")
                 .description("View the leaderboard")
-                .add_option(CreateCommandOption::new(
-                    CommandOptionType::SubCommand,
-                    "today",
-                    "View the leaderboard for today",
-                ))
+                .add_option(
+                    CreateCommandOption::new(
+                        CommandOptionType::SubCommand,
+                        "today",
+                        "View the leaderboard for today",
+                    )
+                    .add_sub_option(
+                        CreateCommandOption::new(
+                            CommandOptionType::String,
+                            "game",
+                            "The game to view the leaderboard for",
+                        )
+                        .required(true)
+                        .add_string_choice("GeoGrid", "geogrid"),
+                    ),
+                )
                 .add_option(
                     CreateCommandOption::new(
                         CommandOptionType::SubCommand,
                         "all_time",
                         "View the all-time leaderboard",
+                    )
+                    .add_sub_option(
+                        CreateCommandOption::new(
+                            CommandOptionType::String,
+                            "game",
+                            "The game to view the leaderboard for",
+                        )
+                        .required(true)
+                        .add_string_choice("GeoGrid", "geogrid"),
                     )
                     .add_sub_option(CreateCommandOption::new(
                         CommandOptionType::Boolean,
@@ -112,6 +132,28 @@ impl EventHandler for Bot {
                 return CreateInteractionResponseMessage::new()
                     .content("An unexpected error occurred");
             };
+
+            let Some(game) = options.iter().find_map(|opt| {
+                if let ResolvedOption {
+                    name: "game",
+                    value: ResolvedValue::String(value),
+                    ..
+                } = opt
+                {
+                    Some(*value)
+                } else {
+                    None
+                }
+            }) else {
+                warn!("cannot respond to command without a value for the game parameter");
+                return CreateInteractionResponseMessage::new()
+                    .content("You must specify a game in order to view the leaderboard!");
+            };
+
+            debug_assert_eq!(
+                game, "geogrid",
+                "The only supported game right now is GeoGrid"
+            );
 
             if *name == "today" {
                 let board = game::geogrid::utils::board_now();
