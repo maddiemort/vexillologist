@@ -1,33 +1,63 @@
 use std::{fmt, str::FromStr};
 
-use serenity::model::prelude::{GuildId, User};
+use serenity::{
+    all::CreateEmbed,
+    model::prelude::{GuildId, User},
+};
 use sqlx::PgPool;
 use thiserror::Error;
 
-use crate::game::ScoreInsertionError;
+use crate::game::{
+    geogrid::leaderboards::{AllTime, Daily},
+    CalculateAllTimeError, CalculateDailyError, ScoreInsertionError,
+};
 
+pub mod leaderboards;
 mod persist;
 pub mod utils;
 
-pub struct Geogrid;
+pub struct GeoGrid;
 
-impl super::Game for Geogrid {
+impl super::Game for GeoGrid {
     type Score = Score;
 
     fn description() -> &'static str {
-        "Geogrid"
+        "GeoGrid"
+    }
+
+    async fn daily_leaderboard(
+        db_pool: &PgPool,
+        guild_id: GuildId,
+    ) -> Result<impl Into<CreateEmbed> + fmt::Debug, CalculateDailyError> {
+        Daily::calculate_for(db_pool, guild_id, utils::board_now()).await
+    }
+
+    async fn all_time_leaderboard(
+        db_pool: &PgPool,
+        guild_id: GuildId,
+        include_today: bool,
+        include_late: bool,
+    ) -> Result<impl Into<CreateEmbed> + fmt::Debug, CalculateAllTimeError> {
+        AllTime::calculate(
+            db_pool,
+            guild_id,
+            utils::board_now(),
+            include_today,
+            include_late,
+        )
+        .await
     }
 }
 
 impl super::Score for Score {
-    type Game = Geogrid;
+    type Game = GeoGrid;
 
     async fn insert(
         self,
         db_pool: &PgPool,
         guild_id: GuildId,
         user: &User,
-    ) -> Result<impl super::InsertedScore<Game = Geogrid>, ScoreInsertionError> {
+    ) -> Result<impl super::InsertedScore, ScoreInsertionError> {
         persist::insert_score(db_pool, self, guild_id, user).await
     }
 }

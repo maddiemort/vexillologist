@@ -1,6 +1,6 @@
 use std::{fmt, str::FromStr};
 
-use serenity::all::{GuildId, User};
+use serenity::all::{CreateEmbed, GuildId, User};
 use sqlx::{Error as SqlxError, PgPool};
 use thiserror::Error;
 
@@ -9,10 +9,43 @@ use crate::persist::InsertionTarget;
 pub mod geogrid;
 
 pub trait Game {
-    type Score: Score;
+    type Score: Score<Game = Self>;
 
     /// A human-readable description of this game, e.g. "Geogrid".
     fn description() -> &'static str;
+
+    async fn daily_leaderboard(
+        db_pool: &PgPool,
+        guild_id: GuildId,
+    ) -> Result<impl Into<CreateEmbed> + fmt::Debug, CalculateDailyError>;
+
+    async fn all_time_leaderboard(
+        db_pool: &PgPool,
+        guild_id: GuildId,
+        include_today: bool,
+        include_late: bool,
+    ) -> Result<impl Into<CreateEmbed> + fmt::Debug, CalculateAllTimeError>;
+}
+
+#[derive(Debug, Error)]
+pub enum CalculateDailyError {
+    #[error("failed to extract data from row: {0}")]
+    FromRow(#[source] SqlxError),
+
+    #[error("unexpected SQLx error: {0}")]
+    Unexpected(SqlxError),
+}
+
+#[derive(Debug, Error)]
+pub enum CalculateAllTimeError {
+    #[error("failed to extract data from row: {0}")]
+    FromRow(#[source] SqlxError),
+
+    #[error("unexpected SQLx error: {0}")]
+    Unexpected(SqlxError),
+
+    #[error("unexpectedly received out-of-bounds place value from query: {0}")]
+    PlaceOutOfBounds(i64),
 }
 
 pub trait Score: FromStr + fmt::Debug {
@@ -23,7 +56,7 @@ pub trait Score: FromStr + fmt::Debug {
         db_pool: &PgPool,
         guild_id: GuildId,
         user: &User,
-    ) -> Result<impl InsertedScore<Game = Self::Game>, ScoreInsertionError>;
+    ) -> Result<impl InsertedScore, ScoreInsertionError>;
 }
 
 #[derive(Debug, Error)]
@@ -46,8 +79,6 @@ pub enum ScoreInsertionError {
 }
 
 pub trait InsertedScore {
-    type Game: Game;
-
     fn is_best_so_far(&self) -> bool;
     fn is_on_time(&self) -> bool;
 }

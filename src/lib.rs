@@ -1,16 +1,14 @@
 #![allow(async_fn_in_trait)]
 
-use std::fmt::Write;
-
 use serenity::{
     all::{
-        Command, CommandInteraction, CommandOptionType, GuildId, Interaction, Mention,
-        ResolvedOption, ResolvedValue,
+        Command, CommandInteraction, CommandOptionType, GuildId, Interaction, ResolvedOption,
+        ResolvedValue,
     },
     async_trait,
     builder::{
-        CreateAllowedMentions, CreateCommand, CreateCommandOption, CreateEmbed, CreateEmbedFooter,
-        CreateInteractionResponse, CreateInteractionResponseMessage,
+        CreateAllowedMentions, CreateCommand, CreateCommandOption, CreateInteractionResponse,
+        CreateInteractionResponseMessage,
     },
     model::{channel::Message, gateway::Ready},
     prelude::*,
@@ -19,13 +17,9 @@ use sqlx::PgPool;
 use tap::Pipe;
 use tracing::{debug, error, info, instrument, warn};
 
-use crate::{
-    game::{geogrid::Geogrid, Game, InsertedScore, Score, ScoreInsertionError},
-    leaderboards::{AllTime, Daily},
-};
+use crate::game::{geogrid::GeoGrid, Game, InsertedScore, Score, ScoreInsertionError};
 
 pub mod game;
-pub mod leaderboards;
 pub mod persist;
 
 pub struct Bot {
@@ -97,9 +91,9 @@ impl EventHandler for Bot {
             return;
         };
 
-        match msg.content.parse::<<Geogrid as Game>::Score>() {
+        match msg.content.parse::<<GeoGrid as Game>::Score>() {
             Ok(score) => {
-                self.process_score::<Geogrid>(score, ctx, msg, guild_id)
+                self.process_score::<GeoGrid>(score, ctx, msg, guild_id)
                     .await;
                 return;
             }
@@ -150,61 +144,27 @@ impl EventHandler for Bot {
                     .content("You must specify a game in order to view the leaderboard!");
             };
 
-            debug_assert_eq!(
-                game, "geogrid",
-                "The only supported game right now is GeoGrid"
-            );
-
             if *name == "today" {
-                let board = game::geogrid::utils::board_now();
-                let today = Daily::calculate_for(db_pool, guild_id, board).await;
-
-                let mut embed = CreateEmbed::new().title("Today's Leaderboard").field(
-                    "board",
-                    format!("{}", board),
-                    true,
-                );
-
-                let Ok(today) = today else {
-                    error!(
-                        error = %today.unwrap_err(),
-                        "failed to calculate daily leaderboard"
-                    );
-                    return CreateInteractionResponseMessage::new()
-                        .content("An unexpected error occurred.");
+                let embed = match game {
+                    "geogrid" => GeoGrid::daily_leaderboard(db_pool, guild_id)
+                        .await
+                        .map(Into::into),
+                    _ => {
+                        return CreateInteractionResponseMessage::new()
+                            .content(format!("Unknown game \"{}\"!", game))
+                    }
                 };
 
-                let mut description = String::new();
-                for (i, entry) in today.entries.into_iter().enumerate() {
-                    let medal = match i {
-                        0 => " 🥇",
-                        1 => " 🥈",
-                        2 => " 🥉",
-                        _ => "",
-                    };
-
-                    writeln!(
-                        &mut description,
-                        "{}. {} ({} pts, {} correct){}",
-                        i + 1,
-                        Mention::User(entry.user_id),
-                        entry.score,
-                        entry.correct,
-                        medal,
-                    )
-                    .expect("should be able to write into String");
+                match embed {
+                    Ok(embed) => CreateInteractionResponseMessage::new()
+                        .embed(embed)
+                        .allowed_mentions(CreateAllowedMentions::new()),
+                    Err(error) => {
+                        error!(%error, "failed to calculate daily leaderboard");
+                        CreateInteractionResponseMessage::new()
+                            .content("An unexpected error occurred.")
+                    }
                 }
-
-                embed = embed
-                    .description(description)
-                    .footer(CreateEmbedFooter::new(
-                        "Medals may change with more submissions! Run `/leaderboard` again to see \
-                         updated scores.",
-                    ));
-
-                CreateInteractionResponseMessage::new()
-                    .embed(embed)
-                    .allowed_mentions(CreateAllowedMentions::new())
             } else if *name == "all_time" {
                 let include_today = options
                     .iter()
@@ -238,50 +198,31 @@ impl EventHandler for Bot {
                     })
                     .unwrap_or(false);
 
-                let board = game::geogrid::utils::board_now();
-                let all_time =
-                    AllTime::calculate(db_pool, guild_id, board, include_today, include_late).await;
-                let Ok(all_time) = all_time else {
-                    error!(error = %all_time.unwrap_err(), "failed to calculate all-time leaderboard");
-                    return CreateInteractionResponseMessage::new()
-                        .content("An unexpected error occurred.");
+                let embed = match game {
+                    "geogrid" => GeoGrid::all_time_leaderboard(
+                        db_pool,
+                        guild_id,
+                        include_today,
+                        include_late,
+                    )
+                    .await
+                    .map(Into::into),
+                    _ => {
+                        return CreateInteractionResponseMessage::new()
+                            .content(format!("Unknown game \"{}\"!", game))
+                    }
                 };
 
-                let mut embed = CreateEmbed::new()
-                    .title("All-Time Leaderboard")
-                    .field(
-                        format!("Includes today's board (#{})?", board),
-                        if include_today { "Yes" } else { "No" },
-                        true,
-                    )
-                    .field(
-                        "Includes late submissions?",
-                        if include_late { "Yes" } else { "No" },
-                        true,
-                    );
-
-                let mut description = String::new();
-                for (i, (user_id, medals)) in all_time.medals_listing.into_iter().enumerate() {
-                    writeln!(
-                        &mut description,
-                        "{}. {}: {}",
-                        i + 1,
-                        Mention::User(user_id),
-                        medals,
-                    )
-                    .expect("should be able to write into String");
+                match embed {
+                    Ok(embed) => CreateInteractionResponseMessage::new()
+                        .embed(embed)
+                        .allowed_mentions(CreateAllowedMentions::new()),
+                    Err(error) => {
+                        error!(%error, "failed to calculate all-time leaderboard");
+                        CreateInteractionResponseMessage::new()
+                            .content("An unexpected error occurred.")
+                    }
                 }
-
-                embed = embed
-                    .description(description)
-                    .footer(CreateEmbedFooter::new(
-                        "Medals may change with more submissions! Run `/leaderboard` again to see \
-                         updated scores.",
-                    ));
-
-                CreateInteractionResponseMessage::new()
-                    .embed(embed)
-                    .allowed_mentions(CreateAllowedMentions::new())
             } else {
                 CreateInteractionResponseMessage::new().content("An unexpected error occurred.")
             }

@@ -1,47 +1,19 @@
-use std::{collections::HashMap, fmt};
+use std::{
+    collections::HashMap,
+    fmt::{self, Write as _},
+};
 
 use indoc::{formatdoc, indoc};
-use serenity::all::{GuildId, UserId};
-use sqlx::{Error as SqlxError, FromRow, PgPool};
-use thiserror::Error;
+use serenity::all::{CreateEmbed, CreateEmbedFooter, GuildId, Mention, UserId};
+use sqlx::{FromRow, PgPool};
 use tracing::{debug, error, info};
+
+use crate::game::{CalculateAllTimeError, CalculateDailyError};
 
 #[derive(Clone, Debug)]
 pub struct Daily {
+    day: usize,
     pub entries: Vec<DailyEntry>,
-}
-
-#[derive(Clone, Debug)]
-pub struct DailyEntry {
-    pub user_id: UserId,
-    pub correct: usize,
-    pub score: f32,
-}
-
-impl From<DailyQueryRow> for DailyEntry {
-    fn from(row: DailyQueryRow) -> Self {
-        Self {
-            user_id: UserId::new(row.user_id as u64),
-            correct: row.correct as usize,
-            score: row.score,
-        }
-    }
-}
-
-#[derive(Clone, Debug, FromRow)]
-struct DailyQueryRow {
-    user_id: i64,
-    correct: i32,
-    score: f32,
-}
-
-#[derive(Debug, Error)]
-pub enum CalculateDailyError {
-    #[error("failed to extract data from row: {0}")]
-    FromRow(#[source] SqlxError),
-
-    #[error("unexpected SQLx error: {0}")]
-    Unexpected(SqlxError),
 }
 
 impl Daily {
@@ -91,81 +63,78 @@ impl Daily {
             }
         };
 
-        Ok(Daily { entries })
+        Ok(Daily { day, entries })
+    }
+}
+
+impl From<Daily> for CreateEmbed {
+    fn from(leaderboard: Daily) -> Self {
+        let mut embed = CreateEmbed::new()
+            .title("Today's GeoGrid Leaderboard")
+            .field("board", format!("{}", leaderboard.day), true);
+
+        let mut description = String::new();
+        for (i, entry) in leaderboard.entries.into_iter().enumerate() {
+            let medal = match i {
+                0 => " 🥇",
+                1 => " 🥈",
+                2 => " 🥉",
+                _ => "",
+            };
+
+            writeln!(
+                &mut description,
+                "{}. {} ({} pts, {} correct){}",
+                i + 1,
+                Mention::User(entry.user_id),
+                entry.score,
+                entry.correct,
+                medal,
+            )
+            .expect("should be able to write into String");
+        }
+
+        embed = embed
+            .description(description)
+            .footer(CreateEmbedFooter::new(
+                "Medals may change with more submissions! Run `/leaderboard` again to see updated \
+                 scores.",
+            ));
+
+        embed
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct AllTime {
-    pub medals_listing: Vec<(UserId, MedalsEntry)>,
+pub struct DailyEntry {
+    pub user_id: UserId,
+    pub correct: usize,
+    pub score: f32,
 }
 
-#[derive(Clone, Copy, Debug, Default)]
-pub struct MedalsEntry {
-    gold: usize,
-    silver: usize,
-    bronze: usize,
-}
-
-impl MedalsEntry {
-    fn medal_points(&self) -> usize {
-        const GOLD_WEIGHT: usize = 4;
-        const SILVER_WEIGHT: usize = 2;
-        const BRONZE_WEIGHT: usize = 1;
-
-        self.gold * GOLD_WEIGHT + self.silver * SILVER_WEIGHT + self.bronze * BRONZE_WEIGHT
-    }
-}
-
-impl fmt::Display for MedalsEntry {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "🥇{} 🥈{} 🥉{} (Medal points: {})",
-            self.gold,
-            self.silver,
-            self.bronze,
-            self.medal_points()
-        )
-    }
-}
-
-impl PartialEq for MedalsEntry {
-    fn eq(&self, other: &Self) -> bool {
-        self.gold == other.gold && self.silver == other.silver && self.bronze == other.bronze
-    }
-}
-
-impl Eq for MedalsEntry {}
-
-impl PartialOrd for MedalsEntry {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for MedalsEntry {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.medal_points().cmp(&other.medal_points())
+impl From<DailyQueryRow> for DailyEntry {
+    fn from(row: DailyQueryRow) -> Self {
+        Self {
+            user_id: UserId::new(row.user_id as u64),
+            correct: row.correct as usize,
+            score: row.score,
+        }
     }
 }
 
 #[derive(Clone, Debug, FromRow)]
-struct AllTimeQueryRow {
+struct DailyQueryRow {
     user_id: i64,
-    place: i64,
+    correct: i32,
+    score: f32,
 }
 
-#[derive(Debug, Error)]
-pub enum CalculateAllTimeError {
-    #[error("failed to extract data from row: {0}")]
-    FromRow(#[source] SqlxError),
-
-    #[error("unexpected SQLx error: {0}")]
-    Unexpected(SqlxError),
-
-    #[error("unexpectedly received out-of-bounds place value from query: {0}")]
-    PlaceOutOfBounds(i64),
+#[derive(Clone, Debug)]
+pub struct AllTime {
+    end_day: usize,
+    include_end: bool,
+    include_late: bool,
+    pub medals_listing: Vec<(UserId, MedalsEntry)>,
 }
 
 impl AllTime {
@@ -264,6 +233,109 @@ impl AllTime {
 
         info!(?medals_listing, "medals listing");
 
-        Ok(AllTime { medals_listing })
+        Ok(AllTime {
+            end_day,
+            include_end,
+            include_late,
+            medals_listing,
+        })
     }
+}
+
+impl From<AllTime> for CreateEmbed {
+    fn from(leaderboard: AllTime) -> Self {
+        let mut embed = CreateEmbed::new()
+            .title("All-Time GeoGrid Leaderboard")
+            .field(
+                format!("Includes today's board (#{})?", leaderboard.end_day),
+                if leaderboard.include_end { "Yes" } else { "No" },
+                true,
+            )
+            .field(
+                "Includes late submissions?",
+                if leaderboard.include_late {
+                    "Yes"
+                } else {
+                    "No"
+                },
+                true,
+            );
+
+        let mut description = String::new();
+        for (i, (user_id, medals)) in leaderboard.medals_listing.into_iter().enumerate() {
+            writeln!(
+                &mut description,
+                "{}. {}: {}",
+                i + 1,
+                Mention::User(user_id),
+                medals,
+            )
+            .expect("should be able to write into String");
+        }
+
+        embed = embed
+            .description(description)
+            .footer(CreateEmbedFooter::new(
+                "Medals may change with more submissions! Run `/leaderboard` again to see updated \
+                 scores.",
+            ));
+
+        embed
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub struct MedalsEntry {
+    gold: usize,
+    silver: usize,
+    bronze: usize,
+}
+
+impl MedalsEntry {
+    fn medal_points(&self) -> usize {
+        const GOLD_WEIGHT: usize = 4;
+        const SILVER_WEIGHT: usize = 2;
+        const BRONZE_WEIGHT: usize = 1;
+
+        self.gold * GOLD_WEIGHT + self.silver * SILVER_WEIGHT + self.bronze * BRONZE_WEIGHT
+    }
+}
+
+impl fmt::Display for MedalsEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "🥇{} 🥈{} 🥉{} (Medal points: {})",
+            self.gold,
+            self.silver,
+            self.bronze,
+            self.medal_points()
+        )
+    }
+}
+
+impl PartialEq for MedalsEntry {
+    fn eq(&self, other: &Self) -> bool {
+        self.gold == other.gold && self.silver == other.silver && self.bronze == other.bronze
+    }
+}
+
+impl Eq for MedalsEntry {}
+
+impl PartialOrd for MedalsEntry {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for MedalsEntry {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.medal_points().cmp(&other.medal_points())
+    }
+}
+
+#[derive(Clone, Debug, FromRow)]
+struct AllTimeQueryRow {
+    user_id: i64,
+    place: i64,
 }

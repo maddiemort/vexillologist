@@ -6,7 +6,7 @@ use tracing::{debug, error, info};
 
 use crate::{
     game::{
-        geogrid::{utils, Geogrid, Score},
+        geogrid::{utils, Score},
         ScoreInsertionError,
     },
     persist::{GuildUserRow, InsertionTarget, UserRow},
@@ -79,8 +79,6 @@ pub struct InsertedScore {
 }
 
 impl crate::game::InsertedScore for InsertedScore {
-    type Game = Geogrid;
-
     fn is_best_so_far(&self) -> bool {
         self.best_so_far
     }
