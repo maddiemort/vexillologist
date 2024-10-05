@@ -84,7 +84,7 @@ impl From<Daily> for CreateEmbed {
 
             writeln!(
                 &mut description,
-                "{}. {} ({} pts)",
+                "- {}. {} ({} pts)",
                 i + 1 - duplicates,
                 Mention::User(entry.user_id),
                 entry.score,
@@ -257,7 +257,7 @@ impl From<AllTime> for CreateEmbed {
 
             writeln!(
                 &mut description,
-                "{}. {}: {}",
+                "- {}. {}: {}",
                 i + 1 - duplicates,
                 Mention::User(user_id),
                 score,
