@@ -7,6 +7,7 @@ use thiserror::Error;
 use crate::persist::{GuildUserInsertionError, InsertionTarget};
 
 pub mod flagle;
+pub mod foodguessr;
 pub mod geogrid;
 
 pub trait Game {

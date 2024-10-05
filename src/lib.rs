@@ -18,7 +18,8 @@ use tap::Pipe;
 use tracing::{debug, error, info, instrument, warn};
 
 use crate::game::{
-    flagle::Flagle, geogrid::GeoGrid, Game, InsertedScore, Score, ScoreInsertionError,
+    flagle::Flagle, foodguessr::FoodGuessr, geogrid::GeoGrid, Game, InsertedScore, Score,
+    ScoreInsertionError,
 };
 
 pub mod game;
@@ -51,7 +52,8 @@ impl EventHandler for Bot {
                         )
                         .required(true)
                         .add_string_choice("GeoGrid", "geogrid")
-                        .add_string_choice("Flagle", "flagle"),
+                        .add_string_choice("Flagle", "flagle")
+                        .add_string_choice("FoodGuessr", "foodguessr"),
                     ),
                 )
                 .add_option(
@@ -68,7 +70,8 @@ impl EventHandler for Bot {
                         )
                         .required(true)
                         .add_string_choice("GeoGrid", "geogrid")
-                        .add_string_choice("Flagle", "flagle"),
+                        .add_string_choice("Flagle", "flagle")
+                        .add_string_choice("FoodGuessr", "foodguessr"),
                     )
                     .add_sub_option(CreateCommandOption::new(
                         CommandOptionType::Boolean,
@@ -113,7 +116,18 @@ impl EventHandler for Bot {
                 return;
             }
             Err(error) => {
-                debug!(reason = %error, "message isn't a Geogrid score");
+                debug!(reason = %error, "message isn't a Flagle score");
+            }
+        }
+
+        match msg.content.parse::<<FoodGuessr as Game>::Score>() {
+            Ok(score) => {
+                self.process_score::<FoodGuessr>(score, ctx, msg, guild_id)
+                    .await;
+                return;
+            }
+            Err(error) => {
+                debug!(reason = %error, "message isn't a FoodGuessr score");
             }
         }
     }
@@ -165,6 +179,9 @@ impl EventHandler for Bot {
                         .await
                         .map(Into::into),
                     "flagle" => Flagle::daily_leaderboard(db_pool, guild_id)
+                        .await
+                        .map(Into::into),
+                    "foodguessr" => FoodGuessr::daily_leaderboard(db_pool, guild_id)
                         .await
                         .map(Into::into),
                     _ => {
@@ -230,6 +247,14 @@ impl EventHandler for Bot {
                             .await
                             .map(Into::into)
                     }
+                    "foodguessr" => FoodGuessr::all_time_leaderboard(
+                        db_pool,
+                        guild_id,
+                        include_today,
+                        include_late,
+                    )
+                    .await
+                    .map(Into::into),
                     _ => {
                         return CreateInteractionResponseMessage::new()
                             .content(format!("Unknown game \"{}\"!", game))
