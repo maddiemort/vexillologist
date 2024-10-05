@@ -71,15 +71,27 @@ impl From<Daily> for CreateEmbed {
             .field("board", format!("{}", leaderboard.day), true);
 
         let mut description = String::new();
+
+        let mut last_score = usize::MAX;
+        let mut duplicates = 0;
+
         for (i, entry) in leaderboard.entries.into_iter().enumerate() {
+            if last_score == entry.score {
+                duplicates += 1;
+            } else {
+                duplicates = 0;
+            };
+
             writeln!(
                 &mut description,
                 "{}. {} ({} pts)",
-                i + 1,
+                i + 1 - duplicates,
                 Mention::User(entry.user_id),
                 entry.score,
             )
             .expect("should be able to write into String");
+
+            last_score = entry.score;
         }
 
         embed = embed
@@ -232,15 +244,27 @@ impl From<AllTime> for CreateEmbed {
             );
 
         let mut description = String::new();
+
+        let mut last_score = usize::MAX;
+        let mut duplicates = 0;
+
         for (i, (user_id, score)) in leaderboard.scores_listing.into_iter().enumerate() {
+            if last_score == score {
+                duplicates += 1;
+            } else {
+                duplicates = 0;
+            };
+
             writeln!(
                 &mut description,
                 "{}. {}: {}",
-                i + 1,
+                i + 1 - duplicates,
                 Mention::User(user_id),
                 score,
             )
             .expect("should be able to write into String");
+
+            last_score = score;
         }
 
         embed = embed
