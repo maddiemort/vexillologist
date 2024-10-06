@@ -1,5 +1,12 @@
 # Changelog
 
+## [v1.2.0](https://github.com/maddiemort/vexillologist/compare/v1.1.1...v1.2.0) (2024-10-06)
+
+### Features
+
+* add support for FoodGuessr score parsing and leaderboards
+([a332fd9](https://github.com/maddiemort/vexillologist/commit/a332fd92c76f22db6847c55a94589cba6ed68f02))
+
 ## [v1.1.1](https://github.com/maddiemort/vexillologist/compare/v1.1.0...v1.1.1) (2024-10-06)
 
 ### Fixes
