@@ -1,9 +1,12 @@
 # Vexillologist
 
-Discord bot that watches for scores from [Geogrid][geogrid].
+Discord bot that watches for scores from the following "dle" games:
+
+- [Flagle][flagle]
+- [Geogrid][geogrid]
 
 Scores are stored by user and guild ID, and then both daily and all-time leaderboards are available
-via the `/leaderboard` slash command.
+for each game via the `/leaderboard` slash command.
 
 ## Development
 
@@ -47,4 +50,5 @@ The overall list of things that has to happen for each release is as follows:
 [convco]: https://github.com/convco/convco
 [conventional-commits]: https://www.conventionalcommits.org/en/v1.0.0/
 [direnv]: https://github.com/direnv/direnv
+[flagle]: https://flagle.io
 [geogrid]: https://geogridgame.com
