@@ -1,5 +1,16 @@
 # Changelog
 
+## [v1.1.1](https://github.com/maddiemort/vexillologist/compare/v1.1.0...v1.1.1) (2024-10-06)
+
+### Fixes
+
+* order flagle scores descending when calculating best score
+([42ea7c0](https://github.com/maddiemort/vexillologist/commit/42ea7c07b215e62ccb32f386108f75e4f2b6669d))
+* stop markdown from interfering with Flagle score lists
+([f6abd57](https://github.com/maddiemort/vexillologist/commit/f6abd57ed23a8316129aea4d65c95ac8c8518874))
+* rank Flagle leaderboard entries the same if scores are the same
+([794f7f9](https://github.com/maddiemort/vexillologist/commit/794f7f9c38f25179814b561c8059aa6d1067ed95))
+
 ## [v1.1.0](https://github.com/maddiemort/vexillologist/compare/v1.0.0...v1.1.0) (2024-10-06)
 
 ### Features
