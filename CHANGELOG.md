@@ -1,5 +1,16 @@
 # Changelog
 
+## [v1.1.0](https://github.com/maddiemort/vexillologist/compare/v1.0.0...v1.1.0) (2024-10-06)
+
+### Features
+
+* add support for Flagle score parsing and leaderboards
+([ca9c9ab](https://github.com/maddiemort/vexillologist/commit/ca9c9ab565fa5f1b7d711bf6cd7e6e56f6d07469))
+* add "game" option for the `/leaderboard` command
+([35b9637](https://github.com/maddiemort/vexillologist/commit/35b963722bce6562d364a64be3f3d882f71fecca))
+* rename scores table to geogrid_scores
+([f481376](https://github.com/maddiemort/vexillologist/commit/f48137660143f841a2228dde8a0d3d8b391dbbd4))
+
 ## v1.0.0 (2024-10-06)
 
 ### Features
