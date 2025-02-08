@@ -1,5 +1,19 @@
 # Changelog
 
+## [v1.3.0](https://github.com/maddiemort/vexillologist/compare/v1.2.0...3b585b9c2ee46cb459d3639e725c44edba9cef96) (2025-02-15)
+
+### Features
+
+* leaderboard for a specific geogrid/flagle board number, not date
+([afd9bc7](https://github.com/maddiemort/vexillologist/commit/afd9bc7c3059e20874d03931b01eb65d79a8af10))
+* react to perfect scores with a crown emoji
+([96be7c4](https://github.com/maddiemort/vexillologist/commit/96be7c47d2ddab451b70d5e302ebac8c57dced27))
+
+### Fixes
+
+* stop filtering out Flagle scores of 0 in leaderboards
+([a482c63](https://github.com/maddiemort/vexillologist/commit/a482c638c581f7954d87d6893636a65e5eff81fe))
+
 ## [v1.2.0](https://github.com/maddiemort/vexillologist/compare/v1.1.1...v1.2.0) (2024-10-06)
 
 ### Features
@@ -7,9 +21,9 @@
 * add support for FoodGuessr score parsing and leaderboards
 ([a332fd9](https://github.com/maddiemort/vexillologist/commit/a332fd92c76f22db6847c55a94589cba6ed68f02))
 
-## [v1.1.1](https://github.com/maddiemort/vexillologist/compare/v1.1.0...v1.1.1) (2024-10-06)
+### [v1.1.1](https://github.com/maddiemort/vexillologist/compare/v1.1.0...v1.1.1) (2024-10-06)
 
-### Fixes
+#### Fixes
 
 * order flagle scores descending when calculating best score
 ([42ea7c0](https://github.com/maddiemort/vexillologist/commit/42ea7c07b215e62ccb32f386108f75e4f2b6669d))
