@@ -185,6 +185,8 @@ impl super::Score for Score {
         guild_id: GuildId,
         user: &User,
     ) -> Result<impl super::InsertedScore, ScoreInsertionError> {
+        let perfect = self.score == 15_000;
+
         let mut txn = db_pool
             .begin()
             .await
@@ -330,6 +332,7 @@ impl super::Score for Score {
 
         Ok(InsertedScore {
             best_so_far,
+            perfect,
             on_time: score_row.on_time(),
         })
     }
@@ -378,12 +381,17 @@ impl ScoreRow {
 
 pub struct InsertedScore {
     pub best_so_far: bool,
+    pub perfect: bool,
     pub on_time: bool,
 }
 
 impl crate::game::InsertedScore for InsertedScore {
     fn is_best_so_far(&self) -> bool {
         self.best_so_far
+    }
+
+    fn is_perfect(&self) -> Option<bool> {
+        Some(self.perfect)
     }
 
     fn is_on_time(&self) -> bool {

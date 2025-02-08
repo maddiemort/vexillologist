@@ -306,6 +306,19 @@ impl Bot {
                     }
                 }
 
+                if inserted_score.is_perfect().unwrap_or_default() {
+                    match msg.react(&ctx.http, '👑').await {
+                        Ok(_) => info!(reaction = %'✨', "reacted to perfect score"),
+                        Err(error) => {
+                            error!(
+                                %error,
+                                reaction = %'👑',
+                                "failed to react to perfect score"
+                            )
+                        }
+                    }
+                }
+
                 if inserted_score.is_best_so_far() && inserted_score.is_on_time() {
                     match msg.react(&ctx.http, '✨').await {
                         Ok(_) => info!(reaction = %'✨', "reacted to today's best score"),

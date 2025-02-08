@@ -98,4 +98,8 @@ pub enum ScoreInsertionError {
 pub trait InsertedScore {
     fn is_best_so_far(&self) -> bool;
     fn is_on_time(&self) -> bool;
+
+    fn is_perfect(&self) -> Option<bool> {
+        None
+    }
 }
