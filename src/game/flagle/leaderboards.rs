@@ -30,7 +30,6 @@ impl Daily {
                 s.guild_id = $1
                 AND s.board = $2
                 AND s.board = s.day_added
-                AND s.score != 0
             ORDER BY score DESC;
         "});
         let entries = match get_scores
@@ -164,7 +163,6 @@ impl AllTime {
                 INNER JOIN users u USING (user_id)
             WHERE
                 s.guild_id = $1
-                AND s.score != 0
                 {}
                 {};
             ",
@@ -327,7 +325,6 @@ impl Board {
             WHERE
                 s.guild_id = $1
                 AND s.board = $2
-                AND s.score != 0
             ORDER BY score DESC;
         "});
         let entries = match get_scores
