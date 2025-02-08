@@ -83,6 +83,31 @@ impl EventHandler for Bot {
                         "include_late",
                         "Include score submissions that were entered after the day ended?",
                     )),
+                )
+                .add_option(
+                    CreateCommandOption::new(
+                        CommandOptionType::SubCommand,
+                        "board",
+                        "View the leaderboard for a specific board number",
+                    )
+                    .add_sub_option(
+                        CreateCommandOption::new(
+                            CommandOptionType::String,
+                            "game",
+                            "The game to view the leaderboard for",
+                        )
+                        .required(true)
+                        .add_string_choice("GeoGrid", "geogrid")
+                        .add_string_choice("Flagle", "flagle"),
+                    )
+                    .add_sub_option(
+                        CreateCommandOption::new(
+                            CommandOptionType::Integer,
+                            "board_number",
+                            "The board number to view the leaderboard for",
+                        )
+                        .required(true),
+                    ),
                 ),
         )
         .await
@@ -267,6 +292,49 @@ impl EventHandler for Bot {
                         .allowed_mentions(CreateAllowedMentions::new()),
                     Err(error) => {
                         error!(%error, "failed to calculate all-time leaderboard");
+                        CreateInteractionResponseMessage::new()
+                            .content("An unexpected error occurred.")
+                    }
+                }
+            } else if *name == "board" {
+                let Some(board) = options.iter().find_map(|opt| {
+                    if let ResolvedOption {
+                        name: "board_number",
+                        value: ResolvedValue::Integer(value),
+                        ..
+                    } = opt
+                    {
+                        Some(*value)
+                    } else {
+                        None
+                    }
+                }) else {
+                    warn!("cannot respond to command without a value for the board number");
+                    return CreateInteractionResponseMessage::new().content(
+                        "You must specify a board number in order to view the leaderboard for a \
+                         board!",
+                    );
+                };
+
+                let embed = match game {
+                    "geogrid" => GeoGrid::board_leaderboard(db_pool, guild_id, board as usize)
+                        .await
+                        .map(Into::into),
+                    "flagle" => Flagle::board_leaderboard(db_pool, guild_id, board as usize)
+                        .await
+                        .map(Into::into),
+                    _ => {
+                        return CreateInteractionResponseMessage::new()
+                            .content(format!("Unknown game \"{}\"!", game))
+                    }
+                };
+
+                match embed {
+                    Ok(embed) => CreateInteractionResponseMessage::new()
+                        .embed(embed)
+                        .allowed_mentions(CreateAllowedMentions::new()),
+                    Err(error) => {
+                        error!(%error, "failed to calculate specific board leaderboard");
                         CreateInteractionResponseMessage::new()
                             .content("An unexpected error occurred.")
                     }

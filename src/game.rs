@@ -27,6 +27,12 @@ pub trait Game {
         include_today: bool,
         include_late: bool,
     ) -> Result<impl Into<CreateEmbed> + fmt::Debug, CalculateAllTimeError>;
+
+    async fn board_leaderboard(
+        db_pool: &PgPool,
+        guild_id: GuildId,
+        board: usize,
+    ) -> Result<impl Into<CreateEmbed> + fmt::Debug, CalculateBoardError>;
 }
 
 #[derive(Debug, Error)]
@@ -52,6 +58,22 @@ pub enum CalculateAllTimeError {
 
     #[error("unexpectedly received out-of-bounds place value from query: {0}")]
     PlaceOutOfBounds(i64),
+
+    #[cfg(debug_assertions)]
+    #[error("not implemented yet")]
+    Todo,
+}
+
+#[derive(Debug, Error)]
+pub enum CalculateBoardError {
+    #[error("failed to extract data from row: {0}")]
+    FromRow(#[source] SqlxError),
+
+    #[error("unexpected SQLx error: {0}")]
+    Unexpected(SqlxError),
+
+    #[error("leaderboard type not supported by game")]
+    Unsupported,
 
     #[cfg(debug_assertions)]
     #[error("not implemented yet")]

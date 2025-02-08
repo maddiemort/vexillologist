@@ -5,7 +5,7 @@ use serenity::all::{CreateEmbed, CreateEmbedFooter, GuildId, Mention, UserId};
 use sqlx::{FromRow, PgPool};
 use tracing::{debug, error, info};
 
-use crate::game::{CalculateAllTimeError, CalculateDailyError};
+use crate::game::{CalculateAllTimeError, CalculateBoardError, CalculateDailyError};
 
 #[derive(Clone, Debug)]
 pub struct Daily {
@@ -282,4 +282,125 @@ impl From<AllTime> for CreateEmbed {
 struct AllTimeQueryRow {
     user_id: i64,
     score: i32,
+}
+
+#[derive(Clone, Debug)]
+pub struct Board {
+    board: usize,
+    pub entries: Vec<BoardEntry>,
+}
+
+#[derive(Clone, Debug)]
+pub struct BoardEntry {
+    pub user_id: UserId,
+    pub score: usize,
+}
+
+impl From<BoardQueryRow> for BoardEntry {
+    fn from(row: BoardQueryRow) -> Self {
+        Self {
+            user_id: UserId::new(row.user_id as u64),
+            score: row.score as usize,
+        }
+    }
+}
+
+#[derive(Clone, Debug, FromRow)]
+struct BoardQueryRow {
+    user_id: i64,
+    score: i32,
+}
+
+impl Board {
+    pub async fn calculate_for(
+        db_pool: &PgPool,
+        guild_id: GuildId,
+        board: usize,
+    ) -> Result<Self, CalculateBoardError> {
+        let get_scores = sqlx::query(indoc! {"
+            SELECT
+                s.user_id,
+                s.score
+            FROM
+                flagle_scores s
+                INNER JOIN users u USING (user_id)
+            WHERE
+                s.guild_id = $1
+                AND s.board = $2
+                AND s.score != 0
+            ORDER BY score DESC;
+        "});
+        let entries = match get_scores
+            .bind(guild_id.get() as i64)
+            .bind(board as i32)
+            .fetch_all(db_pool)
+            .await
+        {
+            Ok(rows) => {
+                info!("fetched all scores");
+
+                rows.into_iter()
+                    .map(|row| {
+                        BoardQueryRow::from_row(&row)
+                            .map(|row| {
+                                #[cfg(debug_assertions)]
+                                debug!(?row, "got leaderboard entry");
+                                row.into()
+                            })
+                            .map_err(CalculateBoardError::FromRow)
+                    })
+                    .collect::<Result<Vec<_>, CalculateBoardError>>()?
+            }
+            Err(error) => {
+                error!(%error, "failed to fetch all scores");
+                return Err(CalculateBoardError::Unexpected(error));
+            }
+        };
+
+        Ok(Board { board, entries })
+    }
+}
+
+impl From<Board> for CreateEmbed {
+    fn from(leaderboard: Board) -> Self {
+        let mut embed = CreateEmbed::new().title("Flagle Leaderboard").field(
+            "board",
+            format!("{}", leaderboard.board),
+            true,
+        );
+
+        let mut description = String::new();
+
+        let mut last_score = usize::MAX;
+        let mut duplicates = 0;
+
+        for (i, entry) in leaderboard.entries.into_iter().enumerate() {
+            if last_score == entry.score {
+                duplicates += 1;
+            } else {
+                duplicates = 0;
+            };
+
+            writeln!(
+                &mut description,
+                "- {}. {} ({} pts)",
+                i + 1 - duplicates,
+                Mention::User(entry.user_id),
+                entry.score,
+            )
+            .expect("should be able to write into String");
+
+            last_score = entry.score;
+        }
+
+        embed = embed
+            .description(description)
+            .footer(CreateEmbedFooter::new(
+                "Ranking is based on all scores submitted for this board number, regardless of \
+                 submission date or time zone. Run `/leaderboard today` for today's on-time \
+                 scores.",
+            ));
+
+        embed
+    }
 }

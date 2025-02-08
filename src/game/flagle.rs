@@ -12,7 +12,10 @@ use tracing::{debug, error, info};
 
 use super::{CalculateAllTimeError, CalculateDailyError, ScoreInsertionError};
 use crate::{
-    game::flagle::leaderboards::{AllTime, Daily},
+    game::{
+        flagle::leaderboards::{AllTime, Board, Daily},
+        CalculateBoardError,
+    },
     persist::{insert_guild_user, GuildUserRow, InsertionTarget, UserRow},
 };
 
@@ -49,6 +52,14 @@ impl super::Game for Flagle {
             include_late,
         )
         .await
+    }
+
+    async fn board_leaderboard(
+        db_pool: &sqlx::PgPool,
+        guild_id: GuildId,
+        board: usize,
+    ) -> Result<impl Into<CreateEmbed> + std::fmt::Debug, CalculateBoardError> {
+        Board::calculate_for(db_pool, guild_id, board).await
     }
 }
 
