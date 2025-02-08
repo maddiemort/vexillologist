@@ -12,7 +12,10 @@ use tracing::{debug, error, info};
 
 use self::leaderboards::{AllTime, Daily};
 use super::{CalculateAllTimeError, CalculateDailyError, ScoreInsertionError};
-use crate::persist::{insert_guild_user, GuildUserRow, InsertionTarget, UserRow};
+use crate::{
+    game::CalculateBoardError,
+    persist::{insert_guild_user, GuildUserRow, InsertionTarget, UserRow},
+};
 
 pub mod leaderboards;
 
@@ -46,6 +49,15 @@ impl super::Game for FoodGuessr {
             include_late,
         )
         .await
+    }
+
+    async fn board_leaderboard(
+        _db_pool: &PgPool,
+        _guild_id: GuildId,
+        _board: usize,
+    ) -> Result<impl Into<CreateEmbed> + fmt::Debug, CalculateBoardError> {
+        // Wow, what a hack - once #5 is implemented, I can stop doing this
+        Err::<crate::game::flagle::leaderboards::Board, _>(CalculateBoardError::Unsupported)
     }
 }
 

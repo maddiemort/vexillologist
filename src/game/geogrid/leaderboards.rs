@@ -8,7 +8,7 @@ use serenity::all::{CreateEmbed, CreateEmbedFooter, GuildId, Mention, UserId};
 use sqlx::{FromRow, PgPool};
 use tracing::{debug, error, info};
 
-use crate::game::{CalculateAllTimeError, CalculateDailyError};
+use crate::game::{CalculateAllTimeError, CalculateBoardError, CalculateDailyError};
 
 #[derive(Clone, Debug)]
 pub struct Daily {
@@ -338,4 +338,125 @@ impl Ord for MedalsEntry {
 struct AllTimeQueryRow {
     user_id: i64,
     place: i64,
+}
+
+#[derive(Clone, Debug)]
+pub struct Board {
+    board: usize,
+    pub entries: Vec<BoardEntry>,
+}
+
+impl Board {
+    pub async fn calculate_for(
+        db_pool: &PgPool,
+        guild_id: GuildId,
+        board: usize,
+    ) -> Result<Self, CalculateBoardError> {
+        let get_scores = sqlx::query(indoc! {"
+            SELECT
+                s.user_id,
+                s.correct,
+                s.score
+            FROM
+                geogrid_scores s
+                INNER JOIN users u USING (user_id)
+            WHERE
+                s.guild_id = $1
+                AND s.board = $2
+            ORDER BY score ASC;
+        "});
+        let entries = match get_scores
+            .bind(guild_id.get() as i64)
+            .bind(board as i32)
+            .fetch_all(db_pool)
+            .await
+        {
+            Ok(rows) => {
+                info!("fetched all scores");
+
+                rows.into_iter()
+                    .map(|row| {
+                        BoardQueryRow::from_row(&row)
+                            .map(|row| {
+                                #[cfg(debug_assertions)]
+                                debug!(?row, "got leaderboard entry");
+                                row.into()
+                            })
+                            .map_err(CalculateBoardError::FromRow)
+                    })
+                    .collect::<Result<Vec<_>, CalculateBoardError>>()?
+            }
+            Err(error) => {
+                error!(%error, "failed to fetch all scores");
+                return Err(CalculateBoardError::Unexpected(error));
+            }
+        };
+
+        Ok(Board { board, entries })
+    }
+}
+
+impl From<Board> for CreateEmbed {
+    fn from(leaderboard: Board) -> Self {
+        let mut embed = CreateEmbed::new().title("GeoGrid Leaderboard").field(
+            "board",
+            format!("{}", leaderboard.board),
+            true,
+        );
+
+        let mut description = String::new();
+        for (i, entry) in leaderboard.entries.into_iter().enumerate() {
+            let medal = match i {
+                0 => " 🥇",
+                1 => " 🥈",
+                2 => " 🥉",
+                _ => "",
+            };
+
+            writeln!(
+                &mut description,
+                "{}. {} ({} pts, {} correct){}",
+                i + 1,
+                Mention::User(entry.user_id),
+                entry.score,
+                entry.correct,
+                medal,
+            )
+            .expect("should be able to write into String");
+        }
+
+        embed = embed
+            .description(description)
+            .footer(CreateEmbedFooter::new(
+                "Ranking is based on all scores submitted for this board number, regardless of \
+                 submission date or time zone. Run `/leaderboard today` for today's on-time \
+                 scores.",
+            ));
+
+        embed
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct BoardEntry {
+    pub user_id: UserId,
+    pub correct: usize,
+    pub score: f32,
+}
+
+impl From<BoardQueryRow> for BoardEntry {
+    fn from(row: BoardQueryRow) -> Self {
+        Self {
+            user_id: UserId::new(row.user_id as u64),
+            correct: row.correct as usize,
+            score: row.score,
+        }
+    }
+}
+
+#[derive(Clone, Debug, FromRow)]
+struct BoardQueryRow {
+    user_id: i64,
+    correct: i32,
+    score: f32,
 }

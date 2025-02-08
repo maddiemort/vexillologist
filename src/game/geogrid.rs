@@ -8,8 +8,8 @@ use sqlx::PgPool;
 use thiserror::Error;
 
 use crate::game::{
-    geogrid::leaderboards::{AllTime, Daily},
-    CalculateAllTimeError, CalculateDailyError, ScoreInsertionError,
+    geogrid::leaderboards::{AllTime, Board, Daily},
+    CalculateAllTimeError, CalculateBoardError, CalculateDailyError, ScoreInsertionError,
 };
 
 pub mod leaderboards;
@@ -46,6 +46,14 @@ impl super::Game for GeoGrid {
             include_late,
         )
         .await
+    }
+
+    async fn board_leaderboard(
+        db_pool: &PgPool,
+        guild_id: GuildId,
+        board: usize,
+    ) -> Result<impl Into<CreateEmbed> + fmt::Debug, CalculateBoardError> {
+        Board::calculate_for(db_pool, guild_id, board).await
     }
 }
 
