@@ -10,7 +10,6 @@
 
     cargo2nix.url = "github:cargo2nix/cargo2nix/main";
     cargo2nix.inputs.flake-utils.follows = "flake-utils";
-    cargo2nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
