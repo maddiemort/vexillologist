@@ -8,13 +8,17 @@ use serenity::{
 };
 use sqlx::{Error as SqlxError, FromRow, PgPool, Row as _};
 use thiserror::Error;
-use tracing::{debug, error, info};
+#[cfg(debug_assertions)]
+use tracing::debug;
+use tracing::{error, info};
 
 use self::leaderboards::{AllTime, Daily};
 use super::{CalculateAllTimeError, CalculateDailyError, ScoreInsertionError};
+#[cfg(debug_assertions)]
+use crate::persist::{GuildUserRow, UserRow};
 use crate::{
     game::CalculateBoardError,
-    persist::{insert_guild_user, GuildUserRow, InsertionTarget, UserRow},
+    persist::{insert_guild_user, InsertionTarget},
 };
 
 pub mod leaderboards;

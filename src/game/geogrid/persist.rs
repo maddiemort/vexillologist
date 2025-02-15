@@ -2,14 +2,18 @@ use chrono::{DateTime, Utc};
 use indoc::indoc;
 use serenity::all::{GuildId, User, UserId};
 use sqlx::{Error as SqlxError, FromRow, PgPool, Row as _};
-use tracing::{debug, error, info};
+#[cfg(debug_assertions)]
+use tracing::debug;
+use tracing::{error, info};
 
+#[cfg(debug_assertions)]
+use crate::persist::{GuildUserRow, UserRow};
 use crate::{
     game::{
         geogrid::{utils, Score},
         ScoreInsertionError,
     },
-    persist::{insert_guild_user, GuildUserRow, InsertionTarget, UserRow},
+    persist::{insert_guild_user, InsertionTarget},
 };
 
 #[derive(Clone, Debug, FromRow)]
