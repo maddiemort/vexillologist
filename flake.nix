@@ -8,8 +8,9 @@
     fenix.url = "github:nix-community/fenix";
     fenix.inputs.nixpkgs.follows = "nixpkgs";
 
-    cargo2nix.url = "github:cargo2nix/cargo2nix/main";
+    cargo2nix.url = "github:cargo2nix/cargo2nix/release-0.12";
     cargo2nix.inputs.flake-utils.follows = "flake-utils";
+    cargo2nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
@@ -60,10 +61,10 @@
 
       rustPkgs = pkgs.rustBuilder.makePackageSet {
         packageFun = import ./Cargo.nix;
-        rustToolchain = pkgs.rust-toolchain;
+        rustToolchain = pkgs.rust-toolchain // {
+          version = "1.81.0";
+        };
       };
-
-      inherit (pkgs.lib) optionals;
     in
     rec
     {
@@ -90,8 +91,7 @@
           sqlx-cli
 
           libiconv
-        ] ++ (optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [
-        ]));
+        ];
       };
 
       formatter = pkgs.nixpkgs-fmt;
