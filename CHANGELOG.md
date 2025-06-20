@@ -1,6 +1,13 @@
 # Changelog
 
-## [v1.3.0](https://github.com/maddiemort/vexillologist/compare/v1.2.0...3b585b9c2ee46cb459d3639e725c44edba9cef96) (2025-02-15)
+## [v1.4.0](https://github.com/maddiemort/vexillologist/compare/v1.3.0...c5200513173f74d022898f898247af718451deb6) (2025-06-20)
+
+### Features
+
+* support for new Geogrid score format
+([7fd9b2e](https://github.com/maddiemort/vexillologist/commit/7fd9b2e6a500c65aab32abe51d9417ed14ea3865))
+
+## [v1.3.0](https://github.com/maddiemort/vexillologist/compare/v1.2.0...v1.3.0) (2025-02-15)
 
 ### Features
 
