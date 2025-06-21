@@ -426,6 +426,15 @@ impl Bot {
                         }
                     }
                 }
+
+                metrics::counter!(
+                    *metric::SCORES_INSERTED,
+                    "game" => G::description(),
+                    "perfect" => inserted_score.is_perfect().unwrap_or_default().to_string(),
+                    "best" => inserted_score.is_best_so_far().to_string(),
+                    "on_time" => inserted_score.is_on_time().to_string(),
+                )
+                .increment(1);
             }
             Err(ScoreInsertionError::Duplicate) => {
                 metrics::counter!(

@@ -12,6 +12,16 @@ pub static SCORES_RECEIVED: LazyLock<&'static str> = LazyLock::new(|| {
     key
 });
 
+pub static SCORES_INSERTED: LazyLock<&'static str> = LazyLock::new(|| {
+    let key = "vexillologist.scores_inserted_count";
+    metrics::describe_counter!(
+        key,
+        Unit::Count,
+        "Number of received scores that were successfully inserted into the database"
+    );
+    key
+});
+
 pub static SCORE_REACTIONS: LazyLock<&'static str> = LazyLock::new(|| {
     let key = "vexillologist.score_reactions_total";
     metrics::describe_counter!(
