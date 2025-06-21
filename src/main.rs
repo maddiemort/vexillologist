@@ -1,5 +1,11 @@
-use std::{env, str::FromStr, time::Duration};
+use std::{
+    env,
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    str::FromStr,
+    time::Duration,
+};
 
+use metrics_exporter_prometheus::PrometheusBuilder;
 use serenity::{gateway::ActivityData, prelude::*};
 use sqlx::PgPool;
 use tracing::{error, info, level_filters::LevelFilter};
@@ -42,18 +48,34 @@ async fn main() {
         Err(error) => panic!("failed to read from .env file: {}", error),
     }
 
-    let loki_layer = env::var("LOKI_URL")
-        .ok()
-        .map(|raw_url| {
-            let environment = env::var("ENVIRONMENT")
+    let loki_url = env::var("LOKI_URL").ok();
+    let metrics_port = env::var("METRICS_PORT").ok();
+
+    let environment = if loki_url.is_some() || metrics_port.is_some() {
+        Some(
+            env::var("ENVIRONMENT")
                 .expect("environment name should have been provided")
                 .parse::<Environment>()
-                .expect("environment name should have been a recognised one");
+                .expect("environment name should have been a recognised one"),
+        )
+    } else {
+        env::var("ENVIRONMENT").ok().map(|env| {
+            env.parse::<Environment>()
+                .expect("environment name should have been a recognised one")
+        })
+    };
 
+    let loki_layer = loki_url
+        .map(|raw_url| {
             let (layer, task) = tracing_loki::builder()
                 .label("service", "vexillologist")
                 .expect("should be able to add service label")
-                .label("environment", environment.to_string())
+                .label(
+                    "environment",
+                    environment
+                        .expect("environment should previously have been parsed")
+                        .to_string(),
+                )
                 .expect("should be able to add environment label")
                 .build_url(Url::parse(&raw_url).expect("Loki URL should be a valid URL"))
                 .expect("should be able to build tracing_loki layer and task");
@@ -102,6 +124,23 @@ async fn main() {
     let discord_token = env::var("DISCORD_TOKEN").expect("discord token should have been provided");
     let connection_string = env::var("CONNECTION_STRING")
         .expect("database connection string should have been provided");
+
+    if let Ok(port_str) = env::var("METRICS_PORT") {
+        let port = port_str
+            .parse::<u16>()
+            .expect("metrics port should parse as a u16");
+        let environment = environment
+            .expect("environment should previously have been parsed")
+            .to_string();
+
+        PrometheusBuilder::new()
+            .with_http_listener(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), port))
+            .add_global_label("environment", &environment)
+            .install()
+            .expect("should be able to install Prometheus metrics recorder and exporter");
+
+        info!(%port, %environment, "installed Prometheus metrics recorder and exporter");
+    }
 
     let db_pool = match PgPool::connect(&connection_string).await {
         Ok(pool) => {
