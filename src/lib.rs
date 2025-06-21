@@ -23,6 +23,7 @@ use crate::game::{
 };
 
 pub mod game;
+pub mod metric;
 pub mod persist;
 
 pub struct Bot {
@@ -364,6 +365,11 @@ impl Bot {
         G: Game,
     {
         info!(?score, "processing score");
+        metrics::counter!(
+            *metric::SCORES_RECEIVED,
+            "game" => G::description(),
+        )
+        .increment(1);
 
         match score.insert(&self.db_pool, guild_id, &msg.author).await {
             Ok(inserted_score) => {
