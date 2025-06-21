@@ -453,6 +453,11 @@ impl Bot {
             }
             Err(error) => {
                 error!(%error, "failed to insert score");
+                metrics::counter!(
+                    *metric::SCORE_INSERTIONS_FAILED,
+                    "game" => G::description(),
+                )
+                .increment(1);
 
                 match msg
                     .reply_ping(
