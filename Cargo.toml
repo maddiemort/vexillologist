@@ -5,6 +5,9 @@ edition = "2021"
 publish = false
 repository = "https://github.com/maddiemort/vexillologist"
 
+[package.metadata.dist]
+dist = true
+
 [dependencies]
 anyhow = "1.0.66"
 chrono = "0.4.38"
@@ -13,6 +16,8 @@ indoc = "2.0.5"
 tap = "1.0.1"
 thiserror = "1.0.61"
 tracing = "0.1.40"
+tracing-loki = "=0.2.5"
+url = "2.5.4"
 
 [dependencies.serenity]
 version = "0.12.0"
@@ -31,10 +36,10 @@ features = ["full"]
 version = "0.3.18"
 features = ["fmt", "env-filter"]
 
+[patch.crates-io]
+tracing-loki = { git = "https://github.com/gabrik/tracing-loki", branch = "fix/ram-usage" }
+
 # The profile that 'cargo dist' will build with
 [profile.dist]
 inherits = "release"
 lto = "thin"
-
-[package.metadata.dist]
-dist = true
