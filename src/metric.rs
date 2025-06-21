@@ -51,3 +51,13 @@ pub static SCORE_REACTIONS_FAILED: LazyLock<&'static str> = LazyLock::new(|| {
     );
     key
 });
+
+pub static DUPLICATE_SCORES: LazyLock<&'static str> = LazyLock::new(|| {
+    let key = "vexillologist.duplicate_scores_count";
+    metrics::describe_counter!(
+        key,
+        Unit::Count,
+        "Number of received scores that were found to be a duplicate"
+    );
+    key
+});

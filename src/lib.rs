@@ -456,6 +456,11 @@ impl Bot {
             }
             Err(ScoreInsertionError::Duplicate) => {
                 metrics::counter!(
+                    *metric::DUPLICATE_SCORES,
+                    "game" => G::description(),
+                )
+                .increment(1);
+                metrics::counter!(
                     *metric::SCORE_REACTIONS,
                     "game" => G::description(),
                     "reaction" => "duplicate",
