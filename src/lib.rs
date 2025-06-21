@@ -373,6 +373,13 @@ impl Bot {
 
         match score.insert(&self.db_pool, guild_id, &msg.author).await {
             Ok(inserted_score) => {
+                metrics::counter!(
+                    *metric::SCORE_REACTIONS,
+                    "game" => G::description(),
+                    "reaction" => "new",
+                )
+                .increment(1);
+
                 match msg.react(&ctx.http, '✅').await {
                     Ok(_) => info!(reaction = %'✅', "reacted to new score"),
                     Err(error) => {
@@ -381,6 +388,13 @@ impl Bot {
                 }
 
                 if inserted_score.is_perfect().unwrap_or_default() {
+                    metrics::counter!(
+                        *metric::SCORE_REACTIONS,
+                        "game" => G::description(),
+                        "reaction" => "perfect",
+                    )
+                    .increment(1);
+
                     match msg.react(&ctx.http, '👑').await {
                         Ok(_) => info!(reaction = %'✨', "reacted to perfect score"),
                         Err(error) => {
@@ -394,6 +408,13 @@ impl Bot {
                 }
 
                 if inserted_score.is_best_so_far() && inserted_score.is_on_time() {
+                    metrics::counter!(
+                        *metric::SCORE_REACTIONS,
+                        "game" => G::description(),
+                        "reaction" => "best",
+                    )
+                    .increment(1);
+
                     match msg.react(&ctx.http, '✨').await {
                         Ok(_) => info!(reaction = %'✨', "reacted to today's best score"),
                         Err(error) => {
@@ -406,12 +427,21 @@ impl Bot {
                     }
                 }
             }
-            Err(ScoreInsertionError::Duplicate) => match msg.react(&ctx.http, '🗞').await {
-                Ok(_) => info!(reaction = %'🗞', "reacted to duplicate score"),
-                Err(error) => {
-                    error!(%error, reaction = %'🗞', "failed to react to duplicate score")
+            Err(ScoreInsertionError::Duplicate) => {
+                metrics::counter!(
+                    *metric::SCORE_REACTIONS,
+                    "game" => G::description(),
+                    "reaction" => "duplicate",
+                )
+                .increment(1);
+
+                match msg.react(&ctx.http, '🗞').await {
+                    Ok(_) => info!(reaction = %'🗞', "reacted to duplicate score"),
+                    Err(error) => {
+                        error!(%error, reaction = %'🗞', "failed to react to duplicate score");
+                    }
                 }
-            },
+            }
             Err(error) => {
                 error!(%error, "failed to insert score");
 
