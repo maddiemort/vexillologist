@@ -383,7 +383,13 @@ impl Bot {
                 match msg.react(&ctx.http, '✅').await {
                     Ok(_) => info!(reaction = %'✅', "reacted to new score"),
                     Err(error) => {
-                        error!(%error, reaction = %'✅', "failed to react to new score")
+                        error!(%error, reaction = %'✅', "failed to react to new score");
+                        metrics::counter!(
+                            *metric::SCORE_REACTIONS_FAILED,
+                            "game" => G::description(),
+                            "reaction" => "new",
+                        )
+                        .increment(1);
                     }
                 }
 
@@ -402,7 +408,13 @@ impl Bot {
                                 %error,
                                 reaction = %'👑',
                                 "failed to react to perfect score"
+                            );
+                            metrics::counter!(
+                                *metric::SCORE_REACTIONS_FAILED,
+                                "game" => G::description(),
+                                "reaction" => "perfect",
                             )
+                            .increment(1);
                         }
                     }
                 }
@@ -422,7 +434,13 @@ impl Bot {
                                 %error,
                                 reaction = %'✨',
                                 "failed to react to today's best score"
+                            );
+                            metrics::counter!(
+                                *metric::SCORE_REACTIONS_FAILED,
+                                "game" => G::description(),
+                                "reaction" => "best",
                             )
+                            .increment(1);
                         }
                     }
                 }
@@ -448,6 +466,12 @@ impl Bot {
                     Ok(_) => info!(reaction = %'🗞', "reacted to duplicate score"),
                     Err(error) => {
                         error!(%error, reaction = %'🗞', "failed to react to duplicate score");
+                        metrics::counter!(
+                            *metric::SCORE_REACTIONS_FAILED,
+                            "game" => G::description(),
+                            "reaction" => "duplicate",
+                        )
+                        .increment(1);
                     }
                 }
             }

@@ -41,3 +41,13 @@ pub static SCORE_REACTIONS: LazyLock<&'static str> = LazyLock::new(|| {
     );
     key
 });
+
+pub static SCORE_REACTIONS_FAILED: LazyLock<&'static str> = LazyLock::new(|| {
+    let key = "vexillologist.score_reactions_failed_count";
+    metrics::describe_counter!(
+        key,
+        Unit::Count,
+        "Number of failed attempts to add an emoji reaction to a message"
+    );
+    key
+});
