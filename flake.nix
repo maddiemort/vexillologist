@@ -33,7 +33,7 @@
               let
                 stableFor = target: target.fromToolchainFile {
                   file = ./rust-toolchain.toml;
-                  sha256 = "sha256-VZZnlyP69+Y3crrLHQyJirqlHrTtGTsyiSnZB8jEvVo=";
+                  sha256 = "sha256-KUm16pHj+cRedf8vxs/Hd2YWxpOrWZ7UOrwhILdSJBU=";
                 };
 
                 rustfmt = final.fenix.latest.rustfmt;
@@ -62,7 +62,7 @@
       rustPkgs = pkgs.rustBuilder.makePackageSet {
         packageFun = import ./Cargo.nix;
         rustToolchain = pkgs.rust-toolchain // {
-          version = "1.81.0";
+          version = "1.87.0";
         };
       };
     in
