@@ -142,6 +142,8 @@ async fn main() {
         info!(%port, %environment, "installed Prometheus metrics recorder and exporter");
     }
 
+    metrics::counter!(*vexillologist::metric::MESSAGES_RECEIVED).absolute(0);
+
     for game in ["Flagle", "FoodGuessr", "GeoGrid"] {
         metrics::counter!(
             *vexillologist::metric::SCORES_RECEIVED,

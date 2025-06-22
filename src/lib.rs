@@ -119,6 +119,8 @@ impl EventHandler for Bot {
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
+        metrics::counter!(*metric::MESSAGES_RECEIVED).increment(1);
+
         let Some(guild_id) = msg.guild_id else {
             warn!("cannot continue processing message without guild ID");
             return;
