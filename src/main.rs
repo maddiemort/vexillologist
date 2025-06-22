@@ -142,6 +142,57 @@ async fn main() {
         info!(%port, %environment, "installed Prometheus metrics recorder and exporter");
     }
 
+    for game in ["Flagle", "FoodGuessr", "GeoGrid"] {
+        metrics::counter!(
+            *vexillologist::metric::SCORES_RECEIVED,
+            "game" => game,
+        )
+        .absolute(0);
+
+        metrics::counter!(
+            *vexillologist::metric::SCORE_INSERTIONS_FAILED,
+            "game" => game,
+        )
+        .absolute(0);
+
+        metrics::counter!(
+            *vexillologist::metric::DUPLICATE_SCORES,
+            "game" => game,
+        )
+        .absolute(0);
+
+        for perfect in ["true", "false"] {
+            for best in ["true", "false"] {
+                for on_time in ["true", "false"] {
+                    metrics::counter!(
+                        *vexillologist::metric::SCORES_INSERTED,
+                        "game" => game,
+                        "perfect" => perfect,
+                        "best" => best,
+                        "on_time" => on_time,
+                    )
+                    .absolute(0);
+                }
+            }
+        }
+
+        for reaction in ["new", "perfect", "best", "duplicate"] {
+            metrics::counter!(
+                *vexillologist::metric::SCORE_REACTIONS,
+                "game" => game,
+                "reaction" => reaction,
+            )
+            .absolute(0);
+
+            metrics::counter!(
+                *vexillologist::metric::SCORE_REACTIONS_FAILED,
+                "game" => game,
+                "reaction" => reaction,
+            )
+            .absolute(0);
+        }
+    }
+
     let db_pool = match PgPool::connect(&connection_string).await {
         Ok(pool) => {
             info!("connected to database");
