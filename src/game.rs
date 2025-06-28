@@ -14,7 +14,10 @@ pub trait Game {
     type Score: Score<Game = Self>;
 
     /// A human-readable description of this game, e.g. "Geogrid".
-    fn description() -> &'static str;
+    const NAME: &'static str;
+
+    /// A link to the website where you can play the game.
+    const LINK: &'static str;
 
     async fn daily_leaderboard(
         db_pool: &PgPool,

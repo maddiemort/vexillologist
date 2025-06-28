@@ -24,9 +24,8 @@ pub struct FoodGuessr;
 impl super::Game for FoodGuessr {
     type Score = Score;
 
-    fn description() -> &'static str {
-        "FoodGuessr"
-    }
+    const NAME: &'static str = "FoodGuessr";
+    const LINK: &'static str = "https://www.foodguessr.com";
 
     async fn daily_leaderboard(
         db_pool: &PgPool,

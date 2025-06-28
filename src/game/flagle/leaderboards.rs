@@ -5,7 +5,9 @@ use serenity::all::{CreateEmbed, CreateEmbedFooter, GuildId, Mention, UserId};
 use sqlx::{FromRow, PgPool};
 use tracing::{debug, error, info};
 
-use crate::game::{CalculateAllTimeError, CalculateBoardError, CalculateDailyError};
+use crate::game::{
+    flagle::Flagle, CalculateAllTimeError, CalculateBoardError, CalculateDailyError, Game as _,
+};
 
 #[derive(Clone, Debug)]
 pub struct Daily {
@@ -68,6 +70,7 @@ impl From<Daily> for CreateEmbed {
     fn from(leaderboard: Daily) -> Self {
         let mut embed = CreateEmbed::new()
             .title("Today's Flagle Leaderboard")
+            .url(Flagle::LINK)
             .field("board", format!("{}", leaderboard.day), true);
 
         let mut description = String::new();
@@ -228,6 +231,7 @@ impl From<AllTime> for CreateEmbed {
     fn from(leaderboard: AllTime) -> Self {
         let mut embed = CreateEmbed::new()
             .title("All-Time Flagle Leaderboard")
+            .url(Flagle::LINK)
             .field(
                 format!("Includes today's board (#{})?", leaderboard.end_day),
                 if leaderboard.include_end { "Yes" } else { "No" },
@@ -363,11 +367,10 @@ impl Board {
 
 impl From<Board> for CreateEmbed {
     fn from(leaderboard: Board) -> Self {
-        let mut embed = CreateEmbed::new().title("Flagle Leaderboard").field(
-            "board",
-            format!("{}", leaderboard.board),
-            true,
-        );
+        let mut embed = CreateEmbed::new()
+            .title("Flagle Leaderboard")
+            .url(Flagle::LINK)
+            .field("board", format!("{}", leaderboard.board), true);
 
         let mut description = String::new();
 

@@ -199,7 +199,7 @@ impl EventHandler for Bot {
 }
 
 impl Bot {
-    #[instrument(skip_all, fields(game = %G::description(), %guild_id, %user_id = msg.author.id))]
+    #[instrument(skip_all, fields(game = %G::NAME, %guild_id, %user_id = msg.author.id))]
     async fn process_score<G>(&self, score: G::Score, ctx: Context, msg: Message, guild_id: GuildId)
     where
         G: Game,
@@ -207,7 +207,7 @@ impl Bot {
         info!(?score, "processing score");
         metrics::counter!(
             *metric::SCORES_RECEIVED,
-            "game" => G::description(),
+            "game" => G::NAME,
         )
         .increment(1);
 
@@ -227,7 +227,7 @@ impl Bot {
             Ok(inserted_score) => {
                 metrics::counter!(
                     *metric::SCORE_REACTIONS,
-                    "game" => G::description(),
+                    "game" => G::NAME,
                     "reaction" => "new",
                 )
                 .increment(1);
@@ -238,7 +238,7 @@ impl Bot {
                         error!(%error, reaction = %'✅', "failed to react to new score");
                         metrics::counter!(
                             *metric::SCORE_REACTIONS_FAILED,
-                            "game" => G::description(),
+                            "game" => G::NAME,
                             "reaction" => "new",
                         )
                         .increment(1);
@@ -248,7 +248,7 @@ impl Bot {
                 if inserted_score.is_perfect().unwrap_or_default() {
                     metrics::counter!(
                         *metric::SCORE_REACTIONS,
-                        "game" => G::description(),
+                        "game" => G::NAME,
                         "reaction" => "perfect",
                     )
                     .increment(1);
@@ -263,7 +263,7 @@ impl Bot {
                             );
                             metrics::counter!(
                                 *metric::SCORE_REACTIONS_FAILED,
-                                "game" => G::description(),
+                                "game" => G::NAME,
                                 "reaction" => "perfect",
                             )
                             .increment(1);
@@ -274,7 +274,7 @@ impl Bot {
                 if inserted_score.is_best_so_far() && inserted_score.is_on_time() {
                     metrics::counter!(
                         *metric::SCORE_REACTIONS,
-                        "game" => G::description(),
+                        "game" => G::NAME,
                         "reaction" => "best",
                     )
                     .increment(1);
@@ -289,7 +289,7 @@ impl Bot {
                             );
                             metrics::counter!(
                                 *metric::SCORE_REACTIONS_FAILED,
-                                "game" => G::description(),
+                                "game" => G::NAME,
                                 "reaction" => "best",
                             )
                             .increment(1);
@@ -299,7 +299,7 @@ impl Bot {
 
                 metrics::counter!(
                     *metric::SCORES_INSERTED,
-                    "game" => G::description(),
+                    "game" => G::NAME,
                     "perfect" => inserted_score.is_perfect().unwrap_or_default().to_string(),
                     "best" => inserted_score.is_best_so_far().to_string(),
                     "on_time" => inserted_score.is_on_time().to_string(),
@@ -309,12 +309,12 @@ impl Bot {
             Err(ScoreInsertionError::Duplicate) => {
                 metrics::counter!(
                     *metric::DUPLICATE_SCORES,
-                    "game" => G::description(),
+                    "game" => G::NAME,
                 )
                 .increment(1);
                 metrics::counter!(
                     *metric::SCORE_REACTIONS,
-                    "game" => G::description(),
+                    "game" => G::NAME,
                     "reaction" => "duplicate",
                 )
                 .increment(1);
@@ -325,7 +325,7 @@ impl Bot {
                         error!(%error, reaction = %'🗞', "failed to react to duplicate score");
                         metrics::counter!(
                             *metric::SCORE_REACTIONS_FAILED,
-                            "game" => G::description(),
+                            "game" => G::NAME,
                             "reaction" => "duplicate",
                         )
                         .increment(1);
@@ -336,7 +336,7 @@ impl Bot {
                 error!(%error, "failed to insert score");
                 metrics::counter!(
                     *metric::SCORE_INSERTIONS_FAILED,
-                    "game" => G::description(),
+                    "game" => G::NAME,
                 )
                 .increment(1);
 

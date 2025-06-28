@@ -21,9 +21,8 @@ pub struct GeoGrid;
 impl super::Game for GeoGrid {
     type Score = Score;
 
-    fn description() -> &'static str {
-        "GeoGrid"
-    }
+    const NAME: &'static str = "GeoGrid";
+    const LINK: &'static str = "https://www.geogridgame.com";
 
     async fn daily_leaderboard(
         db_pool: &PgPool,

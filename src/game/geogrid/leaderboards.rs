@@ -8,7 +8,9 @@ use serenity::all::{CreateEmbed, CreateEmbedFooter, GuildId, Mention, UserId};
 use sqlx::{FromRow, PgPool};
 use tracing::{debug, error, info};
 
-use crate::game::{CalculateAllTimeError, CalculateBoardError, CalculateDailyError};
+use crate::game::{
+    geogrid::GeoGrid, CalculateAllTimeError, CalculateBoardError, CalculateDailyError, Game as _,
+};
 
 #[derive(Clone, Debug)]
 pub struct Daily {
@@ -72,6 +74,7 @@ impl From<Daily> for CreateEmbed {
     fn from(leaderboard: Daily) -> Self {
         let mut embed = CreateEmbed::new()
             .title("Today's GeoGrid Leaderboard")
+            .url(GeoGrid::LINK)
             .field("board", format!("{}", leaderboard.day), true);
 
         let mut description = String::new();
@@ -248,6 +251,7 @@ impl From<AllTime> for CreateEmbed {
     fn from(leaderboard: AllTime) -> Self {
         let mut embed = CreateEmbed::new()
             .title("All-Time GeoGrid Leaderboard")
+            .url(GeoGrid::LINK)
             .field(
                 format!("Includes today's board (#{})?", leaderboard.end_day),
                 if leaderboard.include_end { "Yes" } else { "No" },
@@ -401,11 +405,10 @@ impl Board {
 
 impl From<Board> for CreateEmbed {
     fn from(leaderboard: Board) -> Self {
-        let mut embed = CreateEmbed::new().title("GeoGrid Leaderboard").field(
-            "board",
-            format!("{}", leaderboard.board),
-            true,
-        );
+        let mut embed = CreateEmbed::new()
+            .title("GeoGrid Leaderboard")
+            .url(GeoGrid::LINK)
+            .field("board", format!("{}", leaderboard.board), true);
 
         let mut description = String::new();
         for (i, entry) in leaderboard.entries.into_iter().enumerate() {

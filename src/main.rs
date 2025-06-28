@@ -11,7 +11,10 @@ use sqlx::PgPool;
 use tracing::{error, info, level_filters::LevelFilter};
 use tracing_subscriber::{fmt, layer::SubscriberExt as _, util::SubscriberInitExt as _, EnvFilter};
 use url::Url;
-use vexillologist::Bot;
+use vexillologist::{
+    game::{flagle::Flagle, foodguessr::FoodGuessr, geogrid::GeoGrid, Game as _},
+    Bot,
+};
 
 #[derive(Copy, Clone, Debug)]
 enum Environment {
@@ -144,7 +147,7 @@ async fn main() {
 
     metrics::counter!(*vexillologist::metric::MESSAGES_RECEIVED).absolute(0);
 
-    for game in ["Flagle", "FoodGuessr", "GeoGrid"] {
+    for game in [Flagle::NAME, FoodGuessr::NAME, GeoGrid::NAME] {
         metrics::counter!(
             *vexillologist::metric::SCORES_RECEIVED,
             "game" => game,

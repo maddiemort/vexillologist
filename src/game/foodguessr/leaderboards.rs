@@ -6,7 +6,7 @@ use serenity::all::{CreateEmbed, CreateEmbedFooter, GuildId, Mention, UserId};
 use sqlx::{FromRow, PgPool};
 use tracing::{debug, error, info};
 
-use crate::game::{CalculateAllTimeError, CalculateDailyError};
+use crate::game::{foodguessr::FoodGuessr, CalculateAllTimeError, CalculateDailyError, Game as _};
 
 #[derive(Clone, Debug)]
 pub struct Daily {
@@ -73,6 +73,7 @@ impl From<Daily> for CreateEmbed {
     fn from(leaderboard: Daily) -> Self {
         let mut embed = CreateEmbed::new()
             .title("Today's FoodGuessr Leaderboard")
+            .url(FoodGuessr::LINK)
             .field(
                 "date",
                 format!("{}", leaderboard.date.format("%d %b %Y")),
@@ -239,6 +240,7 @@ impl From<AllTime> for CreateEmbed {
     fn from(leaderboard: AllTime) -> Self {
         let mut embed = CreateEmbed::new()
             .title("All-Time FoodGuessr Leaderboard")
+            .url(FoodGuessr::LINK)
             .field(
                 format!(
                     "Includes today's board (#{})?",

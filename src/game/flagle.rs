@@ -27,9 +27,8 @@ pub struct Flagle;
 impl super::Game for Flagle {
     type Score = Score;
 
-    fn description() -> &'static str {
-        "Flagle"
-    }
+    const NAME: &'static str = "Flagle";
+    const LINK: &'static str = "https://www.flagle.io";
 
     async fn daily_leaderboard(
         db_pool: &sqlx::PgPool,
