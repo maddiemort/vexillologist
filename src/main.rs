@@ -224,7 +224,10 @@ async fn main() {
 
     let mut client = Client::builder(&discord_token, intents)
         .event_handler(Bot { db_pool })
-        .activity(ActivityData::custom("Watching for scores"))
+        .activity(ActivityData::custom(format!(
+            "Watching for scores (v{})",
+            env!("CARGO_PKG_VERSION")
+        )))
         .await
         .expect("should have constructed client");
 
