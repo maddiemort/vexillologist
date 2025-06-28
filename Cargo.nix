@@ -25,7 +25,7 @@ args@{ release ? true
 ,
 }:
 let
-  nixifiedLockHash = "df355356deb935139d1b672c6288a134aa6d3f4c6d8495dc4b9765b811b089f9";
+  nixifiedLockHash = "90aef695d778289f343f7bae06abc5501c97b6f0c7fad4319c85b3e930cf5d9b";
   workspaceSrc = if args.workspaceSrc == null then ./. else args.workspaceSrc;
   currentLockHash = builtins.hashFile "sha256" (workspaceSrc + /Cargo.lock);
   lockHashIgnored =
@@ -58,7 +58,7 @@ else
   {
     cargo2nixVersion = "0.12.0";
     workspace = {
-      vexillologist = rustPackages.unknown.vexillologist."1.4.0";
+      vexillologist = rustPackages.unknown.vexillologist."1.5.0";
     };
     "registry+https://github.com/rust-lang/crates.io-index".addr2line."0.24.2" = overridableMkRustCrate (profileName: rec {
       name = "addr2line";
@@ -4776,9 +4776,9 @@ else
       src = fetchCratesIo { inherit name version; sha256 = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"; };
     });
 
-    "unknown".vexillologist."1.4.0" = overridableMkRustCrate (profileName: rec {
+    "unknown".vexillologist."1.5.0" = overridableMkRustCrate (profileName: rec {
       name = "vexillologist";
-      version = "1.4.0";
+      version = "1.5.0";
       registry = "unknown";
       src = fetchCrateLocal workspaceSrc;
       dependencies = {

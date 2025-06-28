@@ -1,6 +1,42 @@
 # Changelog
 
-## [v1.4.0](https://github.com/maddiemort/vexillologist/compare/v1.3.0...c5200513173f74d022898f898247af718451deb6) (2025-06-20)
+## [v1.5.0](https://github.com/maddiemort/vexillologist/compare/v1.4.0...74cbf5c13135d7a5bbbe17be94e0cc60ce979e87) (2025-06-28)
+
+### Features
+
+* list games you've participated in before but not yet today
+([a22ecec](https://github.com/maddiemort/vexillologist/commit/a22ecec96d6afd2771d515620bad3412e816e51e))
+* command to list all supported games
+([865fd23](https://github.com/maddiemort/vexillologist/commit/865fd2384c92ddc73690bc9945ea44fe10afcfc8))
+* make embed links clickable, link to the game's page
+([f01cd9a](https://github.com/maddiemort/vexillologist/commit/f01cd9a7ad029a8f523cf94726efd1240e3e63aa))
+* allow users to opt out of score tracking & leaderboards
+([8e36195](https://github.com/maddiemort/vexillologist/commit/8e3619510376c1c806fd0ab4c729af4f453cbcae))
+* new metric `vexillologist.messages_received_total`
+([a147695](https://github.com/maddiemort/vexillologist/commit/a147695e14af31f388a6d1f2b2c0b72988410eb7))
+* new metric `vexillologist.duplicate_scores_count`
+([e7212de](https://github.com/maddiemort/vexillologist/commit/e7212dec426a33762047fdc1d37ea8762e3712f8))
+* new metric `vexillologist.score_reactions_failed_count`
+([5cfa715](https://github.com/maddiemort/vexillologist/commit/5cfa715a54389b9064e21ef7b559c42b2f1d1857))
+* new metric `vexillologist.score_insertions_failed_count`
+([17f377b](https://github.com/maddiemort/vexillologist/commit/17f377b4f6f15a729d19d20e1fd5934557517292))
+* new metric `vexillologist.scores_inserted_count`
+([a5e11d6](https://github.com/maddiemort/vexillologist/commit/a5e11d68467d18216cedaa12515a1dcdd822c98f))
+* new metric `vexillologist.score_reactions_total`
+([441d575](https://github.com/maddiemort/vexillologist/commit/441d5754dc565b328c2f9811599b6993ba4969a2))
+* new metric `vexillologist.scores_received_total`
+([1b5f684](https://github.com/maddiemort/vexillologist/commit/1b5f68434fdae34ea18bd01ebfb75384b964a0b1))
+* support for Prometheus metrics scraping
+([82a9286](https://github.com/maddiemort/vexillologist/commit/82a9286393150ec97787ce13c6bf651ec4e40961))
+* support for direct Loki log exporting
+([012c64c](https://github.com/maddiemort/vexillologist/commit/012c64c38cf636315e75ec98d8494a965514a4c3))
+
+### Fixes
+
+* export a value of 0 for all counter metrics at startup
+([20247e9](https://github.com/maddiemort/vexillologist/commit/20247e94830700f2fe21168c32830f2cee49d4e4))
+
+## [v1.4.0](https://github.com/maddiemort/vexillologist/compare/v1.3.0...v1.4.0) (2025-06-20)
 
 ### Features
 
