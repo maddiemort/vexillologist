@@ -36,6 +36,18 @@ pub trait Game {
         guild_id: GuildId,
         board: usize,
     ) -> Result<impl Into<CreateEmbed> + fmt::Debug, CalculateBoardError>;
+
+    async fn user_ever_scored(
+        db_pool: &PgPool,
+        guild_id: GuildId,
+        user: &User,
+    ) -> Result<bool, UserScoreCheckError>;
+
+    async fn user_scored_today(
+        db_pool: &PgPool,
+        guild_id: GuildId,
+        user: &User,
+    ) -> Result<bool, UserScoreCheckError>;
 }
 
 #[derive(Debug, Error)]
@@ -77,6 +89,16 @@ pub enum CalculateBoardError {
 
     #[error("leaderboard type not supported by game")]
     Unsupported,
+
+    #[cfg(debug_assertions)]
+    #[error("not implemented yet")]
+    Todo,
+}
+
+#[derive(Debug, Error)]
+pub enum UserScoreCheckError {
+    #[error("unexpected SQLx error: {0}")]
+    Unexpected(SqlxError),
 
     #[cfg(debug_assertions)]
     #[error("not implemented yet")]

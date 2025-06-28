@@ -8,9 +8,9 @@ use serenity::{
 };
 use sqlx::{Error as SqlxError, FromRow, Row as _};
 use thiserror::Error;
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 
-use super::{CalculateAllTimeError, CalculateDailyError, ScoreInsertionError};
+use super::{CalculateAllTimeError, CalculateDailyError, ScoreInsertionError, UserScoreCheckError};
 use crate::{
     game::{
         flagle::leaderboards::{AllTime, Board, Daily},
@@ -59,6 +59,83 @@ impl super::Game for Flagle {
         board: usize,
     ) -> Result<impl Into<CreateEmbed> + std::fmt::Debug, CalculateBoardError> {
         Board::calculate_for(db_pool, guild_id, board).await
+    }
+
+    #[instrument(skip_all, fields(game = %Self::NAME, %guild_id, user_id = %user.id))]
+    async fn user_ever_scored(
+        db_pool: &sqlx::PgPool,
+        guild_id: GuildId,
+        user: &User,
+    ) -> Result<bool, UserScoreCheckError> {
+        info!("checking if user has ever recorded a score for this game");
+
+        let get_any_score = sqlx::query(indoc! {"
+            SELECT user_id FROM flagle_scores
+            WHERE
+                guild_id = $1
+                AND user_id = $2
+            LIMIT 1;
+        "});
+
+        match get_any_score
+            .bind(guild_id.get() as i64)
+            .bind(user.id.get() as i64)
+            .fetch_one(db_pool)
+            .await
+        {
+            Ok(_) => {
+                info!("user has previously submitted at least one score for this game");
+                Ok(true)
+            }
+            Err(SqlxError::RowNotFound) => {
+                info!("user has never submitted a score for this game");
+                Ok(false)
+            }
+            Err(error) => {
+                error!(%error, "failed to check for user's scores");
+                Err(UserScoreCheckError::Unexpected(error))
+            }
+        }
+    }
+
+    #[instrument(skip_all, fields(game = %Self::NAME, %guild_id, user_id = %user.id))]
+    async fn user_scored_today(
+        db_pool: &sqlx::PgPool,
+        guild_id: GuildId,
+        user: &User,
+    ) -> Result<bool, UserScoreCheckError> {
+        let board_now = utils::board_now();
+        info!(%board_now, "checking if user has recorded a score for this game today");
+
+        let get_todays_score = sqlx::query(indoc! {"
+            SELECT user_id FROM flagle_scores
+            WHERE
+                guild_id = $1
+                AND user_id = $2
+                AND board = $3
+            LIMIT 1;
+        "});
+
+        match get_todays_score
+            .bind(guild_id.get() as i64)
+            .bind(user.id.get() as i64)
+            .bind(board_now as i32)
+            .fetch_one(db_pool)
+            .await
+        {
+            Ok(_) => {
+                info!("user has submitted a score for this game today");
+                Ok(true)
+            }
+            Err(SqlxError::RowNotFound) => {
+                info!("user has not submitted a score for this game today");
+                Ok(false)
+            }
+            Err(error) => {
+                error!(%error, "failed to check for user's scores");
+                Err(UserScoreCheckError::Unexpected(error))
+            }
+        }
     }
 }
 

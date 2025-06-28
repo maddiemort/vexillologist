@@ -20,7 +20,7 @@ use tracing::{debug, error, info, instrument, warn};
 use crate::{
     game::{
         flagle::Flagle, foodguessr::FoodGuessr, geogrid::GeoGrid, Game, InsertedScore, Score,
-        ScoreInsertionError,
+        ScoreInsertionError, UserScoreCheckError,
     },
     persist::{is_opted_out, set_opt_out},
 };
@@ -140,6 +140,18 @@ impl EventHandler for Bot {
             Ok(_) => info!("created global /games command"),
             Err(error) => warn!(%error, "failed to create global /games command"),
         }
+
+        match Command::create_global_command(
+            &ctx.http,
+            CreateCommand::new("todo").description(
+                "List games you haven't submitted a score for today (but have in the past)",
+            ),
+        )
+        .await
+        {
+            Ok(_) => info!("created global /todo command"),
+            Err(error) => warn!(%error, "failed to create global /todo command"),
+        }
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
@@ -197,6 +209,14 @@ impl EventHandler for Bot {
                 }
                 (Some(guild_id), "opt_out") => self.toggle_optout(&command, guild_id).await,
                 (Some(guild_id), "games") => self.list_games(&command, guild_id).await,
+                (Some(guild_id), "todo") => match self.list_missing(&command, guild_id).await {
+                    Ok(msg) => msg,
+                    Err(error) => {
+                        error!(%error, "failed to find user's missing games");
+                        CreateInteractionResponseMessage::new()
+                            .content("An unexpected error occurred")
+                    }
+                },
                 _ => CreateInteractionResponseMessage::new().content("Unrecognised command"),
             }
             .pipe(CreateInteractionResponse::Message);
@@ -639,5 +659,80 @@ impl Bot {
         CreateInteractionResponseMessage::new()
             .embed(embed)
             .ephemeral(true)
+    }
+
+    #[instrument(skip_all, fields(user_id = %command.user.id, %guild_id))]
+    async fn list_missing(
+        &self,
+        command: &CommandInteraction,
+        guild_id: GuildId,
+    ) -> Result<CreateInteractionResponseMessage, UserScoreCheckError> {
+        info!("listing user's missing games for today");
+
+        let mut embed =
+            CreateEmbed::new()
+                .title("Missing Games Today")
+                .footer(CreateEmbedFooter::new(
+                    "To see all supported games, including those you've never submitted a score \
+                     for, run `/games`.",
+                ));
+
+        let mut description = String::new();
+
+        if Flagle::user_ever_scored(&self.db_pool, guild_id, &command.user).await?
+            && !Flagle::user_scored_today(&self.db_pool, guild_id, &command.user).await?
+        {
+            description.push_str(
+                format!(
+                    "- [{flagle}]({flagle_url})\n",
+                    flagle = Flagle::NAME,
+                    flagle_url = Flagle::LINK,
+                )
+                .as_str(),
+            );
+        }
+
+        if FoodGuessr::user_ever_scored(&self.db_pool, guild_id, &command.user).await?
+            && !FoodGuessr::user_scored_today(&self.db_pool, guild_id, &command.user).await?
+        {
+            description.push_str(
+                format!(
+                    "- [{foodguessr}]({foodguessr_url})\n",
+                    foodguessr = FoodGuessr::NAME,
+                    foodguessr_url = FoodGuessr::LINK,
+                )
+                .as_str(),
+            );
+        }
+
+        if GeoGrid::user_ever_scored(&self.db_pool, guild_id, &command.user).await?
+            && !GeoGrid::user_scored_today(&self.db_pool, guild_id, &command.user).await?
+        {
+            description.push_str(
+                format!(
+                    "- [{geogrid}]({geogrid_url})\n",
+                    geogrid = GeoGrid::NAME,
+                    geogrid_url = GeoGrid::LINK,
+                )
+                .as_str(),
+            );
+        }
+
+        if description.is_empty() {
+            description = "You've submitted scores today for all games you've previously \
+                           participated in!"
+                .to_owned();
+        } else {
+            description = format!(
+                "The following games are ones you've participated in in the past, but haven't \
+                 submitted a score for today:\n{description}"
+            );
+        }
+
+        embed = embed.description(description);
+
+        Ok(CreateInteractionResponseMessage::new()
+            .embed(embed)
+            .ephemeral(true))
     }
 }
