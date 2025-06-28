@@ -2,8 +2,8 @@
 
 use serenity::{
     all::{
-        Command, CommandInteraction, CommandOptionType, GuildId, Interaction, ResolvedOption,
-        ResolvedValue,
+        Command, CommandInteraction, CommandOptionType, CreateEmbed, CreateEmbedFooter, GuildId,
+        Interaction, ResolvedOption, ResolvedValue,
     },
     async_trait,
     builder::{
@@ -17,9 +17,12 @@ use sqlx::PgPool;
 use tap::Pipe;
 use tracing::{debug, error, info, instrument, warn};
 
-use crate::game::{
-    flagle::Flagle, foodguessr::FoodGuessr, geogrid::GeoGrid, Game, InsertedScore, Score,
-    ScoreInsertionError,
+use crate::{
+    game::{
+        flagle::Flagle, foodguessr::FoodGuessr, geogrid::GeoGrid, Game, InsertedScore, Score,
+        ScoreInsertionError,
+    },
+    persist::{is_opted_out, set_opt_out},
 };
 
 pub mod game;
@@ -116,6 +119,17 @@ impl EventHandler for Bot {
             Ok(_) => info!("created global /leaderboard command"),
             Err(error) => warn!(%error, "failed to create global /leaderboard command"),
         }
+
+        match Command::create_global_command(
+            &ctx.http,
+            CreateCommand::new("opt_out")
+                .description("Opt out of score tracking & leaderboards (use again to toggle)"),
+        )
+        .await
+        {
+            Ok(_) => info!("created global /opt_out command"),
+            Err(error) => warn!(%error, "failed to create global /opt_out command"),
+        }
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
@@ -161,196 +175,20 @@ impl EventHandler for Bot {
     }
 
     async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
-        async fn process_command(
-            command: &CommandInteraction,
-            db_pool: &PgPool,
-        ) -> CreateInteractionResponseMessage {
-            let Some(guild_id) = command.guild_id else {
-                warn!("cannot continue processing interaction without guild ID");
-                return CreateInteractionResponseMessage::new()
-                    .content("This command can only be run in a server!");
-            };
-
-            info!(%guild_id, "received command interaction");
-
-            let options = command.data.options();
-            let Some(ResolvedOption {
-                name,
-                value: ResolvedValue::SubCommand(options),
-                ..
-            }) = options.first()
-            else {
-                return CreateInteractionResponseMessage::new()
-                    .content("An unexpected error occurred");
-            };
-
-            let Some(game) = options.iter().find_map(|opt| {
-                if let ResolvedOption {
-                    name: "game",
-                    value: ResolvedValue::String(value),
-                    ..
-                } = opt
-                {
-                    Some(*value)
-                } else {
-                    None
-                }
-            }) else {
-                warn!("cannot respond to command without a value for the game parameter");
-                return CreateInteractionResponseMessage::new()
-                    .content("You must specify a game in order to view the leaderboard!");
-            };
-
-            if *name == "today" {
-                let embed = match game {
-                    "geogrid" => GeoGrid::daily_leaderboard(db_pool, guild_id)
-                        .await
-                        .map(Into::into),
-                    "flagle" => Flagle::daily_leaderboard(db_pool, guild_id)
-                        .await
-                        .map(Into::into),
-                    "foodguessr" => FoodGuessr::daily_leaderboard(db_pool, guild_id)
-                        .await
-                        .map(Into::into),
-                    _ => {
-                        return CreateInteractionResponseMessage::new()
-                            .content(format!("Unknown game \"{}\"!", game))
-                    }
-                };
-
-                match embed {
-                    Ok(embed) => CreateInteractionResponseMessage::new()
-                        .embed(embed)
-                        .allowed_mentions(CreateAllowedMentions::new()),
-                    Err(error) => {
-                        error!(%error, "failed to calculate daily leaderboard");
-                        CreateInteractionResponseMessage::new()
-                            .content("An unexpected error occurred.")
-                    }
-                }
-            } else if *name == "all_time" {
-                let include_today = options
-                    .iter()
-                    .find_map(|opt| {
-                        if let ResolvedOption {
-                            name: "include_today",
-                            value: ResolvedValue::Boolean(value),
-                            ..
-                        } = opt
-                        {
-                            Some(*value)
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or(true);
-
-                let include_late = options
-                    .iter()
-                    .find_map(|opt| {
-                        if let ResolvedOption {
-                            name: "include_late",
-                            value: ResolvedValue::Boolean(value),
-                            ..
-                        } = opt
-                        {
-                            Some(*value)
-                        } else {
-                            None
-                        }
-                    })
-                    .unwrap_or(false);
-
-                let embed = match game {
-                    "geogrid" => GeoGrid::all_time_leaderboard(
-                        db_pool,
-                        guild_id,
-                        include_today,
-                        include_late,
-                    )
-                    .await
-                    .map(Into::into),
-                    "flagle" => {
-                        Flagle::all_time_leaderboard(db_pool, guild_id, include_today, include_late)
-                            .await
-                            .map(Into::into)
-                    }
-                    "foodguessr" => FoodGuessr::all_time_leaderboard(
-                        db_pool,
-                        guild_id,
-                        include_today,
-                        include_late,
-                    )
-                    .await
-                    .map(Into::into),
-                    _ => {
-                        return CreateInteractionResponseMessage::new()
-                            .content(format!("Unknown game \"{}\"!", game))
-                    }
-                };
-
-                match embed {
-                    Ok(embed) => CreateInteractionResponseMessage::new()
-                        .embed(embed)
-                        .allowed_mentions(CreateAllowedMentions::new()),
-                    Err(error) => {
-                        error!(%error, "failed to calculate all-time leaderboard");
-                        CreateInteractionResponseMessage::new()
-                            .content("An unexpected error occurred.")
-                    }
-                }
-            } else if *name == "board" {
-                let Some(board) = options.iter().find_map(|opt| {
-                    if let ResolvedOption {
-                        name: "board_number",
-                        value: ResolvedValue::Integer(value),
-                        ..
-                    } = opt
-                    {
-                        Some(*value)
-                    } else {
-                        None
-                    }
-                }) else {
-                    warn!("cannot respond to command without a value for the board number");
-                    return CreateInteractionResponseMessage::new().content(
-                        "You must specify a board number in order to view the leaderboard for a \
-                         board!",
-                    );
-                };
-
-                let embed = match game {
-                    "geogrid" => GeoGrid::board_leaderboard(db_pool, guild_id, board as usize)
-                        .await
-                        .map(Into::into),
-                    "flagle" => Flagle::board_leaderboard(db_pool, guild_id, board as usize)
-                        .await
-                        .map(Into::into),
-                    _ => {
-                        return CreateInteractionResponseMessage::new()
-                            .content(format!("Unknown game \"{}\"!", game))
-                    }
-                };
-
-                match embed {
-                    Ok(embed) => CreateInteractionResponseMessage::new()
-                        .embed(embed)
-                        .allowed_mentions(CreateAllowedMentions::new()),
-                    Err(error) => {
-                        error!(%error, "failed to calculate specific board leaderboard");
-                        CreateInteractionResponseMessage::new()
-                            .content("An unexpected error occurred.")
-                    }
-                }
-            } else {
-                CreateInteractionResponseMessage::new().content("An unexpected error occurred.")
-            }
-        }
-
         if let Interaction::Command(command) = interaction {
-            let response = process_command(&command, &self.db_pool)
-                .await
-                .pipe(CreateInteractionResponse::Message);
+            let response = match (command.guild_id, command.data.name.as_str()) {
+                (None, _) => {
+                    warn!("cannot continue processing interaction without guild ID");
+                    CreateInteractionResponseMessage::new()
+                        .content("This command can only be run in a server!")
+                }
+                (Some(guild_id), "leaderboard") => {
+                    self.process_leaderboard(&command, guild_id).await
+                }
+                (Some(guild_id), "opt_out") => self.toggle_optout(&command, guild_id).await,
+                _ => CreateInteractionResponseMessage::new().content("Unrecognised command"),
+            }
+            .pipe(CreateInteractionResponse::Message);
 
             match command.create_response(&ctx.http, response).await {
                 Ok(_) => info!("responded to command"),
@@ -361,7 +199,7 @@ impl EventHandler for Bot {
 }
 
 impl Bot {
-    #[instrument(skip_all, fields(game = %G::description(), %guild_id))]
+    #[instrument(skip_all, fields(game = %G::description(), %guild_id, %user_id = msg.author.id))]
     async fn process_score<G>(&self, score: G::Score, ctx: Context, msg: Message, guild_id: GuildId)
     where
         G: Game,
@@ -372,6 +210,18 @@ impl Bot {
             "game" => G::description(),
         )
         .increment(1);
+
+        match is_opted_out(&self.db_pool, guild_id, &msg.author).await {
+            Ok(false) => info!("user has not opted out in this guild, proceeding to insert score"),
+            Ok(true) => {
+                info!("user has opted out in this guild, ignoring score");
+                return;
+            }
+            Err(error) => {
+                error!(%error, "failed to determine user's opt-out status, ignoring score");
+                return;
+            }
+        }
 
         match score.insert(&self.db_pool, guild_id, &msg.author).await {
             Ok(inserted_score) => {
@@ -507,5 +357,243 @@ impl Bot {
                 }
             }
         }
+    }
+
+    async fn process_leaderboard(
+        &self,
+        command: &CommandInteraction,
+        guild_id: GuildId,
+    ) -> CreateInteractionResponseMessage {
+        info!(%guild_id, "received command interaction");
+
+        let options = command.data.options();
+        let Some(ResolvedOption {
+            name,
+            value: ResolvedValue::SubCommand(options),
+            ..
+        }) = options.first()
+        else {
+            return CreateInteractionResponseMessage::new().content("An unexpected error occurred");
+        };
+
+        let Some(game) = options.iter().find_map(|opt| {
+            if let ResolvedOption {
+                name: "game",
+                value: ResolvedValue::String(value),
+                ..
+            } = opt
+            {
+                Some(*value)
+            } else {
+                None
+            }
+        }) else {
+            warn!("cannot respond to command without a value for the game parameter");
+            return CreateInteractionResponseMessage::new()
+                .content("You must specify a game in order to view the leaderboard!");
+        };
+
+        if *name == "today" {
+            let embed = match game {
+                "geogrid" => GeoGrid::daily_leaderboard(&self.db_pool, guild_id)
+                    .await
+                    .map(Into::into),
+                "flagle" => Flagle::daily_leaderboard(&self.db_pool, guild_id)
+                    .await
+                    .map(Into::into),
+                "foodguessr" => FoodGuessr::daily_leaderboard(&self.db_pool, guild_id)
+                    .await
+                    .map(Into::into),
+                _ => {
+                    return CreateInteractionResponseMessage::new()
+                        .content(format!("Unknown game \"{}\"!", game))
+                }
+            };
+
+            match embed {
+                Ok(embed) => CreateInteractionResponseMessage::new()
+                    .embed(embed)
+                    .allowed_mentions(CreateAllowedMentions::new()),
+                Err(error) => {
+                    error!(%error, "failed to calculate daily leaderboard");
+                    CreateInteractionResponseMessage::new().content("An unexpected error occurred.")
+                }
+            }
+        } else if *name == "all_time" {
+            let include_today = options
+                .iter()
+                .find_map(|opt| {
+                    if let ResolvedOption {
+                        name: "include_today",
+                        value: ResolvedValue::Boolean(value),
+                        ..
+                    } = opt
+                    {
+                        Some(*value)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(true);
+
+            let include_late = options
+                .iter()
+                .find_map(|opt| {
+                    if let ResolvedOption {
+                        name: "include_late",
+                        value: ResolvedValue::Boolean(value),
+                        ..
+                    } = opt
+                    {
+                        Some(*value)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(false);
+
+            let embed = match game {
+                "geogrid" => GeoGrid::all_time_leaderboard(
+                    &self.db_pool,
+                    guild_id,
+                    include_today,
+                    include_late,
+                )
+                .await
+                .map(Into::into),
+                "flagle" => Flagle::all_time_leaderboard(
+                    &self.db_pool,
+                    guild_id,
+                    include_today,
+                    include_late,
+                )
+                .await
+                .map(Into::into),
+                "foodguessr" => FoodGuessr::all_time_leaderboard(
+                    &self.db_pool,
+                    guild_id,
+                    include_today,
+                    include_late,
+                )
+                .await
+                .map(Into::into),
+                _ => {
+                    return CreateInteractionResponseMessage::new()
+                        .content(format!("Unknown game \"{}\"!", game))
+                }
+            };
+
+            match embed {
+                Ok(embed) => CreateInteractionResponseMessage::new()
+                    .embed(embed)
+                    .allowed_mentions(CreateAllowedMentions::new()),
+                Err(error) => {
+                    error!(%error, "failed to calculate all-time leaderboard");
+                    CreateInteractionResponseMessage::new().content("An unexpected error occurred.")
+                }
+            }
+        } else if *name == "board" {
+            let Some(board) = options.iter().find_map(|opt| {
+                if let ResolvedOption {
+                    name: "board_number",
+                    value: ResolvedValue::Integer(value),
+                    ..
+                } = opt
+                {
+                    Some(*value)
+                } else {
+                    None
+                }
+            }) else {
+                warn!("cannot respond to command without a value for the board number");
+                return CreateInteractionResponseMessage::new().content(
+                    "You must specify a board number in order to view the leaderboard for a board!",
+                );
+            };
+
+            let embed = match game {
+                "geogrid" => GeoGrid::board_leaderboard(&self.db_pool, guild_id, board as usize)
+                    .await
+                    .map(Into::into),
+                "flagle" => Flagle::board_leaderboard(&self.db_pool, guild_id, board as usize)
+                    .await
+                    .map(Into::into),
+                _ => {
+                    return CreateInteractionResponseMessage::new()
+                        .content(format!("Unknown game \"{}\"!", game))
+                }
+            };
+
+            match embed {
+                Ok(embed) => CreateInteractionResponseMessage::new()
+                    .embed(embed)
+                    .allowed_mentions(CreateAllowedMentions::new()),
+                Err(error) => {
+                    error!(%error, "failed to calculate specific board leaderboard");
+                    CreateInteractionResponseMessage::new().content("An unexpected error occurred.")
+                }
+            }
+        } else {
+            CreateInteractionResponseMessage::new().content("An unexpected error occurred.")
+        }
+    }
+
+    #[instrument(skip_all, fields(user_id = %command.user.id, %guild_id))]
+    async fn toggle_optout(
+        &self,
+        command: &CommandInteraction,
+        guild_id: GuildId,
+    ) -> CreateInteractionResponseMessage {
+        info!("toggling opt-out status");
+
+        let is_opted_out = match is_opted_out(&self.db_pool, guild_id, &command.user).await {
+            Ok(is_opted_out) => is_opted_out,
+            Err(error) => {
+                error!(%error, "failed to check opt-out status of user");
+                return CreateInteractionResponseMessage::new()
+                    .content("An unexpected error occurred");
+            }
+        };
+
+        let mut txn = match self.db_pool.begin().await {
+            Ok(txn) => txn,
+            Err(error) => {
+                error!(%error, "failed to begin database transaction");
+                return CreateInteractionResponseMessage::new()
+                    .content("An unexpected error occurred");
+            }
+        };
+
+        if let Err(error) = set_opt_out(&mut *txn, guild_id, &command.user, !is_opted_out).await {
+            error!(%error, "failed to set opt-out status");
+            return CreateInteractionResponseMessage::new().content("An unexpected error occurred");
+        };
+
+        if let Err(error) = txn.commit().await {
+            error!(%error, "failed to commit database transaction");
+            return CreateInteractionResponseMessage::new().content("An unexpected error occurred");
+        }
+
+        let now_opted_out = !is_opted_out;
+        info!(opted_out = %now_opted_out, "user's opt-out status in this guild has been set");
+
+        let mut embed = CreateEmbed::new().footer(CreateEmbedFooter::new(
+            "Run the `/opt_out` command again to toggle.",
+        ));
+
+        embed = if now_opted_out {
+            embed.title("Opted Out").description(
+                "You have opted out of participation in score tracking and leaderboards.",
+            )
+        } else {
+            embed.title("Opted In").description(
+                "You have opted back in to participation in score tracking and leaderboards. Any \
+                 previously recorded scores have been reinstated.",
+            )
+        };
+
+        CreateInteractionResponseMessage::new()
+            .embed(embed)
+            .ephemeral(true)
     }
 }

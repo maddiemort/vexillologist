@@ -29,11 +29,12 @@ impl Daily {
                 s.score
             FROM
                 geogrid_scores s
-                INNER JOIN users u USING (user_id)
+                INNER JOIN guild_users gu USING (user_id, guild_id)
             WHERE
                 s.guild_id = $1
                 AND s.board = $2
                 AND s.board = s.day_added
+                AND gu.opted_out = false
             ORDER BY score ASC;
         "});
         let entries = match get_scores
@@ -168,11 +169,12 @@ impl AllTime {
                     ) as place
                 FROM
                     geogrid_scores s
-                    INNER JOIN users u USING (user_id)
+                    INNER JOIN guild_users gu USING (user_id, guild_id)
                 WHERE
                     s.guild_id = $1
                     {}
                     {}
+                    AND gu.opted_out = false
             )
             SELECT
                 user_id,
@@ -359,10 +361,11 @@ impl Board {
                 s.score
             FROM
                 geogrid_scores s
-                INNER JOIN users u USING (user_id)
+                INNER JOIN guild_users gu USING (user_id, guild_id)
             WHERE
                 s.guild_id = $1
                 AND s.board = $2
+                AND gu.opted_out = false
             ORDER BY score ASC;
         "});
         let entries = match get_scores

@@ -25,11 +25,12 @@ impl Daily {
                 s.score
             FROM
                 flagle_scores s
-                INNER JOIN users u USING (user_id)
+                INNER JOIN guild_users gu USING (user_id, guild_id)
             WHERE
                 s.guild_id = $1
                 AND s.board = $2
                 AND s.board = s.day_added
+                AND gu.opted_out = false
             ORDER BY score DESC;
         "});
         let entries = match get_scores
@@ -160,11 +161,12 @@ impl AllTime {
                 s.score
             FROM
                 flagle_scores s
-                INNER JOIN users u USING (user_id)
+                INNER JOIN guild_users gu USING (user_id, guild_id)
             WHERE
                 s.guild_id = $1
                 {}
-                {};
+                {}
+                AND gu.opted_out = false;
             ",
             board_clause,
             late_clause
@@ -321,10 +323,11 @@ impl Board {
                 s.score
             FROM
                 flagle_scores s
-                INNER JOIN users u USING (user_id)
+                INNER JOIN guild_users gu USING (user_id, guild_id)
             WHERE
                 s.guild_id = $1
                 AND s.board = $2
+                AND gu.opted_out = false
             ORDER BY score DESC;
         "});
         let entries = match get_scores

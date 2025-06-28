@@ -26,7 +26,7 @@ impl Daily {
                 s.score
             FROM
                 foodguessr_scores s
-                INNER JOIN users u USING (user_id)
+                INNER JOIN guild_users gu USING (user_id, guild_id)
             WHERE
                 s.guild_id = $1
                 AND s.year = $2
@@ -34,6 +34,7 @@ impl Daily {
                 AND s.year = s.year_added
                 AND s.ordinal = s.ordinal_added
                 AND s.score != 0
+                AND gu.opted_out = false
             ORDER BY score DESC;
         "});
         let entries = match get_scores
@@ -169,12 +170,13 @@ impl AllTime {
                 s.score
             FROM
                 foodguessr_scores s
-                INNER JOIN users u USING (user_id)
+                INNER JOIN guild_users gu USING (user_id, guild_id)
             WHERE
                 s.guild_id = $1
                 AND s.score != 0
                 {}
-                {};
+                {}
+                AND gu.opted_out = false;
             ",
             date_clause,
             late_clause

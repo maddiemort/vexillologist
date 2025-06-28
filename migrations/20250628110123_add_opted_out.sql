@@ -1,0 +1,2 @@
+ALTER TABLE guild_users
+ADD COLUMN opted_out BOOLEAN NOT NULL DEFAULT false;
