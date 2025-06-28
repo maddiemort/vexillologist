@@ -8,13 +8,9 @@ use serenity::{
 };
 use sqlx::{Error as SqlxError, FromRow, Row as _};
 use thiserror::Error;
-#[cfg(debug_assertions)]
-use tracing::debug;
 use tracing::{error, info};
 
 use super::{CalculateAllTimeError, CalculateDailyError, ScoreInsertionError};
-#[cfg(debug_assertions)]
-use crate::persist::{GuildUserRow, UserRow};
 use crate::{
     game::{
         flagle::leaderboards::{AllTime, Board, Daily},
@@ -293,51 +289,6 @@ impl super::Score for Score {
         }
 
         txn.commit().await.map_err(ScoreInsertionError::CommitTxn)?;
-
-        #[cfg(debug_assertions)]
-        match sqlx::query_as::<_, UserRow>("SELECT user_id FROM users")
-            .fetch_all(db_pool)
-            .await
-        {
-            Ok(users) => {
-                for user in users {
-                    debug!(?user, "user");
-                }
-            }
-            Err(error) => {
-                error!(%error, "failed to get users");
-            }
-        }
-
-        #[cfg(debug_assertions)]
-        match sqlx::query_as::<_, GuildUserRow>("SELECT guild_id, user_id FROM guild_users")
-            .fetch_all(db_pool)
-            .await
-        {
-            Ok(guild_users) => {
-                for guild_user in guild_users {
-                    debug!(?guild_user, "guild user");
-                }
-            }
-            Err(error) => {
-                error!(%error, "failed to get guild users");
-            }
-        }
-
-        #[cfg(debug_assertions)]
-        match sqlx::query_as::<_, ScoreRow>("SELECT * FROM flagle_scores")
-            .fetch_all(db_pool)
-            .await
-        {
-            Ok(scores) => {
-                for score in scores {
-                    debug!(?score, "score");
-                }
-            }
-            Err(error) => {
-                error!(%error, "failed to get scores");
-            }
-        }
 
         Ok(InsertedScore {
             best_so_far,
