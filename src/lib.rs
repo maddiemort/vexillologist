@@ -130,6 +130,16 @@ impl EventHandler for Bot {
             Ok(_) => info!("created global /opt_out command"),
             Err(error) => warn!(%error, "failed to create global /opt_out command"),
         }
+
+        match Command::create_global_command(
+            &ctx.http,
+            CreateCommand::new("games").description("List all supported games"),
+        )
+        .await
+        {
+            Ok(_) => info!("created global /games command"),
+            Err(error) => warn!(%error, "failed to create global /games command"),
+        }
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
@@ -186,6 +196,7 @@ impl EventHandler for Bot {
                     self.process_leaderboard(&command, guild_id).await
                 }
                 (Some(guild_id), "opt_out") => self.toggle_optout(&command, guild_id).await,
+                (Some(guild_id), "games") => self.list_games(&command, guild_id).await,
                 _ => CreateInteractionResponseMessage::new().content("Unrecognised command"),
             }
             .pipe(CreateInteractionResponse::Message);
@@ -591,6 +602,39 @@ impl Bot {
                  previously recorded scores have been reinstated.",
             )
         };
+
+        CreateInteractionResponseMessage::new()
+            .embed(embed)
+            .ephemeral(true)
+    }
+
+    #[instrument(skip_all, fields(user_id = %command.user.id, %guild_id))]
+    async fn list_games(
+        &self,
+        command: &CommandInteraction,
+        guild_id: GuildId,
+    ) -> CreateInteractionResponseMessage {
+        info!("listing supported games");
+
+        let embed = CreateEmbed::new()
+            .title("Supported Games")
+            .description(format!(
+                indoc::indoc! {"
+                    - [{flagle}]({flagle_url})
+                    - [{foodguessr}]({foodguessr_url})
+                    - [{geogrid}]({geogrid_url})
+                "},
+                flagle = Flagle::NAME,
+                flagle_url = Flagle::LINK,
+                foodguessr = FoodGuessr::NAME,
+                foodguessr_url = FoodGuessr::LINK,
+                geogrid = GeoGrid::NAME,
+                geogrid_url = GeoGrid::LINK,
+            ))
+            .footer(CreateEmbedFooter::new(
+                "For details about how to request new games, please see the Vexillologist bot's \
+                 profile.",
+            ));
 
         CreateInteractionResponseMessage::new()
             .embed(embed)
