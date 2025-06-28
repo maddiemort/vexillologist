@@ -75,7 +75,7 @@ impl From<Daily> for CreateEmbed {
             .title("Today's FoodGuessr Leaderboard")
             .url(FoodGuessr::LINK)
             .field(
-                "date",
+                "Date",
                 format!("{}", leaderboard.date.format("%d %b %Y")),
                 true,
             );

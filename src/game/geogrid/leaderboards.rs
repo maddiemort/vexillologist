@@ -75,7 +75,7 @@ impl From<Daily> for CreateEmbed {
         let mut embed = CreateEmbed::new()
             .title("Today's GeoGrid Leaderboard")
             .url(GeoGrid::LINK)
-            .field("board", format!("{}", leaderboard.day), true);
+            .field("Board", format!("{}", leaderboard.day), true);
 
         let mut description = String::new();
         for (i, entry) in leaderboard.entries.into_iter().enumerate() {
@@ -408,7 +408,7 @@ impl From<Board> for CreateEmbed {
         let mut embed = CreateEmbed::new()
             .title("GeoGrid Leaderboard")
             .url(GeoGrid::LINK)
-            .field("board", format!("{}", leaderboard.board), true);
+            .field("Board", format!("{}", leaderboard.board), true);
 
         let mut description = String::new();
         for (i, entry) in leaderboard.entries.into_iter().enumerate() {

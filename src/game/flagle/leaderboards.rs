@@ -71,7 +71,7 @@ impl From<Daily> for CreateEmbed {
         let mut embed = CreateEmbed::new()
             .title("Today's Flagle Leaderboard")
             .url(Flagle::LINK)
-            .field("board", format!("{}", leaderboard.day), true);
+            .field("Board", format!("{}", leaderboard.day), true);
 
         let mut description = String::new();
 
@@ -370,7 +370,7 @@ impl From<Board> for CreateEmbed {
         let mut embed = CreateEmbed::new()
             .title("Flagle Leaderboard")
             .url(Flagle::LINK)
-            .field("board", format!("{}", leaderboard.board), true);
+            .field("Board", format!("{}", leaderboard.board), true);
 
         let mut description = String::new();
 
